@@ -1,3 +1,4 @@
-[submodule "GBC"]
-	path = GBC
+[submodule "gbc"]
+	path = gbc
 	url = git@github.com:Egggggg/gamboye.git
+    
