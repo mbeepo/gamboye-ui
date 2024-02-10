@@ -1,0 +1,3 @@
+[submodule "GBC"]
+	path = GBC
+	url = git@github.com:Egggggg/GBC.git
