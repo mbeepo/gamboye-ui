@@ -1,42 +1,33 @@
 //! https://github.com/parasyte/pixels/tree/39e84aacbe117347e7b8e7201c48184344aed9cc/examples/minimal-egui
 
-#![deny(clippy::all)]
-#![forbid(unsafe_code)]
-
+use crate::comms::EmuMsgOut;
 use crate::gui::Framework;
 use error_iter::ErrorIter as _;
-use log::error;
+use log::{error, info};
 use pixels::{Error, Pixels, SurfaceTexture};
-use winit::dpi::LogicalSize;
+use tokio::sync::mpsc::{Receiver, Sender};
+use winit::dpi::{LogicalSize, PhysicalPosition};
 use winit::event::{Event, VirtualKeyCode};
-use winit::event_loop::{ControlFlow, EventLoop};
+use winit::event_loop::{ControlFlow, EventLoop, EventLoopProxy};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
+use tokio::sync::mpsc::error::TryRecvError;
 
-use gbc::{CpuStatus, Gbc,  PpuStatus};
+use gbc::{CpuStatus, Gbc, PpuStatus};
 
+mod comms;
 mod gui;
 
-const SCALE_FACTOR: u32 = 1;
+const WIDTH: u32 = 160;
+const HEIGHT: u32 = 144;
 
-const INTERNAL_WIDTH: u32 = 160;
-const INTERNAL_HEIGHT: u32 = 144;
-const WIDTH: u32 = INTERNAL_WIDTH * SCALE_FACTOR;
-const HEIGHT: u32 = INTERNAL_HEIGHT * SCALE_FACTOR;
-
-fn main() -> Result<(), Error> {
-    env_logger::init();
-
+#[tokio::main]
+async fn main() -> Result<(), Error> {
     let filename = std::env::args().nth(1).unwrap();
-    dbg!(&filename);
-
+    
     let rom = std::fs::read(filename).unwrap();
 
-    let mbc = gbc::get_mbc(&rom);
-    let mut emu = Gbc::new(mbc, false, true);
-    emu.load_rom(&rom);
-
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoop::default();
     let mut input = WinitInputHelper::new();
     let window = {
         let size = LogicalSize::new(WIDTH as f64, HEIGHT as f64);
@@ -64,6 +55,48 @@ fn main() -> Result<(), Error> {
         (pixels, framework)
     };
 
+    let (emu_sender, mut emu_receiver): (Sender<EmuMsgOut>, Receiver<EmuMsgOut>) = tokio::sync::mpsc::channel(16);
+    let event_loop_proxy = event_loop.create_proxy();
+
+    tokio::spawn(async move {
+        let mbc = gbc::get_mbc(&rom);
+        let mut emu = Gbc::new(mbc, false, true);
+        emu.load_rom(&rom);
+
+        println!("Emu running methinks");
+
+        // TODO:
+        //  - Messages with UI thread
+        //  - Limit framerate
+        loop {
+            match emu.step() {
+                (Ok(CpuStatus::Run), ppu_status) => {
+                    match ppu_status {
+                        PpuStatus::VBlank => {
+                            emu_sender.send(EmuMsgOut::RequestRedraw).await.unwrap();
+                            event_loop_proxy.send_event(()).unwrap();
+                        },
+                        PpuStatus::Drawing => {
+                            for px in &emu.cpu.ppu.queue {
+                                emu_sender.send(EmuMsgOut::FramebufferUpdate(*px)).await.unwrap();
+                                event_loop_proxy.send_event(()).unwrap();
+                            }
+
+                            emu.cpu.ppu.queue.clear();
+                        },
+                    }
+                },
+                (Ok(CpuStatus::Stop), _) => {
+                    todo!("Die");
+                },
+                (Ok(CpuStatus::Break), _) => unimplemented!(),
+                (Err(err), _) => {
+                    eprintln!("{err}");
+                }
+            }
+        }
+    });
+
     event_loop.run(move |event, _, control_flow| {
         // Handle input events
         if input.update(&event) {
@@ -87,31 +120,6 @@ fn main() -> Result<(), Error> {
                 }
                 framework.resize(size.width, size.height);
             }
-
-            // Update internal state and request a redraw
-            match emu.step() {
-                (Ok(CpuStatus::Run), ppu_status) => {
-                    match ppu_status {
-                        PpuStatus::VBlank => {
-                            emu.cpu.ppu.status = PpuStatus::Drawing;
-                            window.request_redraw()
-                        },
-                        PpuStatus::Drawing => {},
-                    }
-                },
-                (Ok(CpuStatus::Stop), _) => {
-                    *control_flow = ControlFlow::Exit;
-                    return
-                },
-                (Ok(CpuStatus::Break), _) => unimplemented!(),
-                (Err(err), _) => {
-                    error!("{err}");
-                }
-            }
-
-            // Update internal state and request a redraw
-            // world.update();
-            // window.request_redraw();
         }
 
         match event {
@@ -121,17 +129,13 @@ fn main() -> Result<(), Error> {
             }
             // Draw the current frame
             Event::RedrawRequested(_) => {
-                // Draw the world
-                emu.draw(pixels.frame_mut());
-                // world.draw(pixels.frame_mut());
-                println!("drawing...");
-
+                // Draw the flightless bird
                 // Prepare egui
                 framework.prepare(&window);
 
                 // Render everything together
                 let render_result = pixels.render_with(|encoder, render_target, context| {
-                    // Render the world texture
+                    // Render videog gaming
                     context.scaling_renderer.render(encoder, render_target);
 
                     // Render egui
@@ -145,15 +149,32 @@ fn main() -> Result<(), Error> {
                     log_error("pixels.render", err);
                     *control_flow = ControlFlow::Exit;
                 }
-            }
+            },
+            Event::UserEvent(_) => {
+                match emu_receiver.try_recv() {
+                    Ok(msg) => {
+                        match msg {
+                            EmuMsgOut::FramebufferUpdate(px) => {
+                                let fb = pixels.frame_mut();
+                                let index = px.x as usize + px.y as usize * WIDTH as usize;
+
+                                fb[index*4..index*4+4].copy_from_slice(&px.color.to_be_bytes());
+                            },
+                            EmuMsgOut::RequestRedraw => window.request_redraw(),
+                        }
+                    },
+                    Err(TryRecvError::Empty) => {},
+                    Err(TryRecvError::Disconnected) => eprintln!("The thread of prophecy has been severed"),
+                }
+            },
             _ => (),
         }
     });
 }
 
 fn log_error<E: std::error::Error + 'static>(method_name: &str, err: E) {
-    error!("{method_name}() failed: {err}");
+    eprintln!("{method_name}() failed: {err}");
     for source in err.sources().skip(1) {
-        error!("  Caused by: {source}");
+        eprintln!("  Caused by: {source}");
     }
 }
