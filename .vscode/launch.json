@@ -1,0 +1,233 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'gamboye'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=gamboye",
+                    "--package=gamboye",
+                ],
+                "filter": {
+                    "name": "gamboye",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "roms/acid2.gb"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'gamboye'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=gamboye",
+                    "--package=gamboye"
+                ],
+                "filter": {
+                    "name": "gamboye",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'gbc'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=gbc"
+                ],
+                "filter": {
+                    "name": "gbc",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'debug'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=debug",
+                    "--package=gbc"
+                ],
+                "filter": {
+                    "name": "debug",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'debug'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=debug",
+                    "--package=gbc"
+                ],
+                "filter": {
+                    "name": "debug",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'doctor'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=doctor",
+                    "--package=gbc"
+                ],
+                "filter": {
+                    "name": "doctor",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'doctor'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=doctor",
+                    "--package=gbc"
+                ],
+                "filter": {
+                    "name": "doctor",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'food'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=food",
+                    "--package=gbc"
+                ],
+                "filter": {
+                    "name": "food",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'food'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=food",
+                    "--package=gbc"
+                ],
+                "filter": {
+                    "name": "food",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'run'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=run",
+                    "--package=gbc"
+                ],
+                "filter": {
+                    "name": "run",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'run'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=run",
+                    "--package=gbc"
+                ],
+                "filter": {
+                    "name": "run",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'memory'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=memory",
+                    "--package=gbc"
+                ],
+                "filter": {
+                    "name": "memory",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

@@ -22,6 +22,8 @@ mod gui;
 
 const WIDTH: u32 = 160;
 const HEIGHT: u32 = 144;
+const WINDOW_WIDTH: u32 = WIDTH * 2;
+const WINDOW_HEIGHT: u32 = HEIGHT * 2;
 
 const FPS_LIMIT: u32 = 69;
 
@@ -34,7 +36,7 @@ async fn main() -> Result<(), Error> {
     let event_loop = EventLoopBuilder::<EmuMsgOut>::with_user_event().build();
     let mut input = WinitInputHelper::new();
     let window = {
-        let size = LogicalSize::new(WIDTH as f64, HEIGHT as f64);
+        let size = LogicalSize::new(WINDOW_WIDTH as f64, WINDOW_HEIGHT as f64);
         WindowBuilder::new()
             .with_title("Beef Wellington")
             .with_inner_size(size)
