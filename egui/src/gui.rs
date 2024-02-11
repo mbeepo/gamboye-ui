@@ -1,3 +1,5 @@
+//! Adapted from https://github.com/parasyte/pixels/tree/39e84aacbe117347e7b8e7201c48184344aed9cc/examples/minimal-egui/src/gui.rs
+
 use egui::{ClippedPrimitive, Context, TexturesDelta};
 use egui_wgpu::renderer::{Renderer, ScreenDescriptor};
 use pixels::{wgpu, PixelsContext};
@@ -21,6 +23,9 @@ pub(crate) struct Framework {
 /// Example application state. A real application will need a lot more state than this.
 pub struct Gui {
     pub fps: u32,
+    pub fps_average: u32,
+    pub fps_min: Option<u32>,
+    pub fps_max: u32,
 }
 
 impl Framework {
@@ -139,13 +144,23 @@ impl Framework {
 impl Gui {
     /// Create a `Gui`.
     fn new() -> Self {
-        Self { fps: 0 }
+        Self {
+            fps: 0,
+            fps_average: 0,
+            fps_min: None,
+            fps_max: 0,
+        }
     }
 
     /// Create the UI using egui.
     fn ui(&mut self, ctx: &Context) {
+
         egui::TopBottomPanel::top("menubar_container").show(ctx, |ui| {
-            ui.label(format!("FPS: {}", self.fps));
+            ui.vertical(|ui| {
+                ui.label(format!("FPS: {}", self.fps));
+                ui.label(format!("Avg. FPS (10s): {}", self.fps_average));
+                ui.label(format!("Min: {}, Max: {}", self.fps_min.map(|e| e.to_string()).unwrap_or("N/A".to_owned()), self.fps_max));
+            });
         });
     }
 }

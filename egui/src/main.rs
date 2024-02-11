@@ -1,18 +1,19 @@
-//! https://github.com/parasyte/pixels/tree/39e84aacbe117347e7b8e7201c48184344aed9cc/examples/minimal-egui
+//! Adapted from https://github.com/parasyte/pixels/tree/39e84aacbe117347e7b8e7201c48184344aed9cc/examples/minimal-egui/src/main.rs
 
+use std::collections::VecDeque;
 use std::time;
 
 use crate::comms::EmuMsgOut;
 use crate::gui::Framework;
+use comms::EmuMsgIn;
 use error_iter::ErrorIter as _;
 use pixels::{Error, Pixels, SurfaceTexture};
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use winit::dpi::LogicalSize;
 use winit::event::{Event, VirtualKeyCode};
-use winit::event_loop::{ControlFlow, EventLoop};
+use winit::event_loop::{ControlFlow, EventLoopBuilder};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
-use tokio::sync::mpsc::error::TryRecvError;
 
 use gbc::{CpuStatus, Gbc, PpuStatus};
 
@@ -22,13 +23,15 @@ mod gui;
 const WIDTH: u32 = 160;
 const HEIGHT: u32 = 144;
 
+const FPS_LIMIT: u32 = 69;
+
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     let filename = std::env::args().nth(1).unwrap();
     
     let rom = std::fs::read(filename).unwrap();
 
-    let event_loop = EventLoop::default();
+    let event_loop = EventLoopBuilder::<EmuMsgOut>::with_user_event().build();
     let mut input = WinitInputHelper::new();
     let window = {
         let size = LogicalSize::new(WIDTH as f64, HEIGHT as f64);
@@ -56,26 +59,26 @@ async fn main() -> Result<(), Error> {
         (pixels, framework)
     };
 
-    let (emu_sender, mut emu_receiver): (Sender<EmuMsgOut>, Receiver<EmuMsgOut>) = tokio::sync::mpsc::channel(16);
+    let (main_sender, mut emu_recv): (UnboundedSender<EmuMsgIn>, UnboundedReceiver<EmuMsgIn>) = tokio::sync::mpsc::unbounded_channel();
     let event_loop_proxy = event_loop.create_proxy();
 
     tokio::spawn(async move {
         let mbc = gbc::get_mbc(&rom);
         let mut emu = Gbc::new(mbc, false, true);
         emu.load_rom(&rom);
-
-        println!("Emu running methinks");
-
-        // TODO:
-        //  - Messages with UI thread
-        //  - Limit framerate
+        
         loop {
+            if let Ok(msg) = emu_recv.try_recv() {
+                match msg {
+                    EmuMsgIn::Sleep(until) => tokio::time::sleep_until(until.into()).await,
+                }
+            }
+
             match emu.step() {
                 (Ok(CpuStatus::Run), ppu_status) => {
                     match ppu_status {
                         PpuStatus::VBlank => {
-                            emu_sender.send(EmuMsgOut::RequestRedraw(emu.cpu.ppu.fb.clone())).await.unwrap();
-                            event_loop_proxy.send_event(()).unwrap();
+                            event_loop_proxy.send_event(EmuMsgOut::RequestRedraw(emu.cpu.ppu.fb.clone())).unwrap();
                         },
                         PpuStatus::Drawing => {},
                     }
@@ -92,6 +95,7 @@ async fn main() -> Result<(), Error> {
     });
 
     let mut fps = 0;
+    let mut fps_buf: VecDeque<u32> = vec![0; 10].into();
     let mut last_second = time::Instant::now();
 
     event_loop.run(move |event, _, control_flow| {
@@ -147,28 +151,35 @@ async fn main() -> Result<(), Error> {
                     *control_flow = ControlFlow::Exit;
                 }
             },
-            Event::UserEvent(_) => {
-                match emu_receiver.try_recv() {
-                    Ok(msg) => {
-                        match msg {
-                            EmuMsgOut::RequestRedraw(fb) => {
-                                pixels.frame_mut().copy_from_slice(&fb);
-                                window.request_redraw();
+            Event::UserEvent(msg) => {
+                match msg {
+                    EmuMsgOut::RequestRedraw(fb) => {
+                        pixels.frame_mut().copy_from_slice(&fb);
+                        window.request_redraw();
 
-                                let elapsed = time::Instant::now().duration_since(last_second);
+                        let elapsed = time::Instant::now().duration_since(last_second);
 
-                                if elapsed.as_millis() >= 1000 {
-                                    framework.gui.fps = fps;
-                                    fps = 1;
-                                    last_second = time::Instant::now();
-                                } else {
-                                    fps += 1;
-                                }
-                            },
+                        if elapsed.as_millis() >= 1000 {
+                            fps_buf.pop_front();
+                            fps_buf.push_back(fps);
+                            let fps_average: u32 = fps_buf.iter().sum::<u32>() / fps_buf.iter().filter(|&&e| e > 0).count() as u32;
+
+                            framework.gui.fps = fps;
+                            framework.gui.fps_average = fps_average;
+                            framework.gui.fps_min = Some(fps.min(framework.gui.fps_min.unwrap_or(u32::MAX)));
+                            framework.gui.fps_max = fps.max(framework.gui.fps_max);
+
+                            fps = 0;
+                            last_second = time::Instant::now();
+                        } else {
+                            fps += 1;
+
+                            if fps >= FPS_LIMIT {
+                                let until = last_second + time::Duration::from_millis(1000);
+                                main_sender.send(EmuMsgIn::Sleep(until)).unwrap();
+                            }
                         }
                     },
-                    Err(TryRecvError::Empty) => {},
-                    Err(TryRecvError::Disconnected) => eprintln!("The thread of prophecy has been severed"),
                 }
             },
             _ => (),
