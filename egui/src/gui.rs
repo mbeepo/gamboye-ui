@@ -15,13 +15,12 @@ pub(crate) struct Framework {
     textures: TexturesDelta,
 
     // State for the GUI
-    gui: Gui,
+    pub gui: Gui,
 }
 
 /// Example application state. A real application will need a lot more state than this.
-struct Gui {
-    /// Only show the egui window when true.
-    window_open: bool,
+pub struct Gui {
+    pub fps: u32,
 }
 
 impl Framework {
@@ -140,20 +139,13 @@ impl Framework {
 impl Gui {
     /// Create a `Gui`.
     fn new() -> Self {
-        Self { window_open: true }
+        Self { fps: 0 }
     }
 
     /// Create the UI using egui.
     fn ui(&mut self, ctx: &Context) {
         egui::TopBottomPanel::top("menubar_container").show(ctx, |ui| {
-            egui::menu::bar(ui, |ui| {
-                ui.menu_button("File", |ui| {
-                    if ui.button("About...").clicked() {
-                        self.window_open = true;
-                        ui.close_menu();
-                    }
-                })
-            });
+            ui.label(format!("FPS: {}", self.fps));
         });
     }
 }

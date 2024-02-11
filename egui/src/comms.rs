@@ -1,10 +1,4 @@
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 pub enum EmuMsgOut {
-    FramebufferUpdate(gbc::Pixel),
-    RequestRedraw,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum Events {
-    
+    RequestRedraw(Vec<u8>),
 }

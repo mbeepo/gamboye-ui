@@ -1,14 +1,15 @@
 //! https://github.com/parasyte/pixels/tree/39e84aacbe117347e7b8e7201c48184344aed9cc/examples/minimal-egui
 
+use std::time;
+
 use crate::comms::EmuMsgOut;
 use crate::gui::Framework;
 use error_iter::ErrorIter as _;
-use log::{error, info};
 use pixels::{Error, Pixels, SurfaceTexture};
 use tokio::sync::mpsc::{Receiver, Sender};
-use winit::dpi::{LogicalSize, PhysicalPosition};
+use winit::dpi::LogicalSize;
 use winit::event::{Event, VirtualKeyCode};
-use winit::event_loop::{ControlFlow, EventLoop, EventLoopProxy};
+use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
 use tokio::sync::mpsc::error::TryRecvError;
@@ -73,17 +74,10 @@ async fn main() -> Result<(), Error> {
                 (Ok(CpuStatus::Run), ppu_status) => {
                     match ppu_status {
                         PpuStatus::VBlank => {
-                            emu_sender.send(EmuMsgOut::RequestRedraw).await.unwrap();
+                            emu_sender.send(EmuMsgOut::RequestRedraw(emu.cpu.ppu.fb.clone())).await.unwrap();
                             event_loop_proxy.send_event(()).unwrap();
                         },
-                        PpuStatus::Drawing => {
-                            for px in &emu.cpu.ppu.queue {
-                                emu_sender.send(EmuMsgOut::FramebufferUpdate(*px)).await.unwrap();
-                                event_loop_proxy.send_event(()).unwrap();
-                            }
-
-                            emu.cpu.ppu.queue.clear();
-                        },
+                        PpuStatus::Drawing => {},
                     }
                 },
                 (Ok(CpuStatus::Stop), _) => {
@@ -96,6 +90,9 @@ async fn main() -> Result<(), Error> {
             }
         }
     });
+
+    let mut fps = 0;
+    let mut last_second = time::Instant::now();
 
     event_loop.run(move |event, _, control_flow| {
         // Handle input events
@@ -154,13 +151,20 @@ async fn main() -> Result<(), Error> {
                 match emu_receiver.try_recv() {
                     Ok(msg) => {
                         match msg {
-                            EmuMsgOut::FramebufferUpdate(px) => {
-                                let fb = pixels.frame_mut();
-                                let index = px.x as usize + px.y as usize * WIDTH as usize;
+                            EmuMsgOut::RequestRedraw(fb) => {
+                                pixels.frame_mut().copy_from_slice(&fb);
+                                window.request_redraw();
 
-                                fb[index*4..index*4+4].copy_from_slice(&px.color.to_be_bytes());
+                                let elapsed = time::Instant::now().duration_since(last_second);
+
+                                if elapsed.as_millis() >= 1000 {
+                                    framework.gui.fps = fps;
+                                    fps = 1;
+                                    last_second = time::Instant::now();
+                                } else {
+                                    fps += 1;
+                                }
                             },
-                            EmuMsgOut::RequestRedraw => window.request_redraw(),
                         }
                     },
                     Err(TryRecvError::Empty) => {},
