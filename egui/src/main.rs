@@ -30,7 +30,6 @@ const FPS_LIMIT: u32 = 69;
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     let filename = std::env::args().nth(1).unwrap();
-    
     let rom = std::fs::read(filename).unwrap();
 
     let event_loop = EventLoopBuilder::<EmuMsgOut>::with_user_event().build();
@@ -187,6 +186,8 @@ async fn main() -> Result<(), Error> {
             _ => (),
         }
     });
+
+    Ok(())
 }
 
 fn log_error<E: std::error::Error + 'static>(method_name: &str, err: E) {
