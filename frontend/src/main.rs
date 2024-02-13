@@ -14,7 +14,7 @@ const HEIGHT: f32 = emu::HEIGHT as f32 + 25.0;
 #[tokio::main]
 async fn main() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([WIDTH, HEIGHT]).with_title("Beef Wellington"),
+        viewport: egui::ViewportBuilder::default().with_title("Beef Wellington").with_inner_size([WIDTH, HEIGHT]).with_min_inner_size([WIDTH, HEIGHT]),
         vsync: false,
         ..Default::default()
     };
