@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use eframe::egui;
 use gui::EmuWindow;
 
@@ -6,14 +8,19 @@ mod emu;
 mod gui;
 
 // egui wants these to be floats ¯\_(ツ)_/¯
-const WIDTH: f32 = 320.0;
-const HEIGHT: f32 = 288.0;
+const WIDTH: f32 = emu::WIDTH as f32;
+const HEIGHT: f32 = emu::HEIGHT as f32 + 25.0;
 
-fn main() -> Result<(), eframe::Error> {
+#[tokio::main]
+async fn main() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([WIDTH, HEIGHT]),
+        viewport: egui::ViewportBuilder::default().with_inner_size([WIDTH, HEIGHT]).with_title("Beef Wellington"),
+        vsync: false,
         ..Default::default()
     };
 
-    eframe::run_native("gamboye", options, Box::new(|cc| Box::new(EmuWindow::new(cc))))
+    let filename = std::env::args().nth(1).unwrap();
+    let rom = std::fs::read(filename).unwrap();
+
+    eframe::run_native("gamboye", options, Box::new(|cc| Box::new(EmuWindow::new(cc, rom))))
 }
