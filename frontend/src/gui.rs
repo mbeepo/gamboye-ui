@@ -48,7 +48,7 @@ impl Default for PerfState {
 }
 
 pub struct EmuWindow {
-    emu_channel: mpsc::UnboundedSender<EmuMsgIn>,
+    emu_channel: Option<mpsc::UnboundedSender<EmuMsgIn>>,
     state: State,
     display_mesh: Mesh,
     // display_texture: TextureHandle,
@@ -76,7 +76,7 @@ impl EmuWindow {
         });
 
         Self {
-            emu_channel: emu_send,
+            emu_channel: Some(emu_send),
             state,
             display_mesh,
             display_pos,
@@ -196,10 +196,16 @@ impl App for EmuWindow {
             ui.painter().add(display);
         });
 
-        ctx.input(|i| {
-            if i.key_pressed(egui::Key::Escape) {
-                ctx.send_viewport_cmd_to(ViewportId::ROOT, egui::ViewportCommand::Close);
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            println!("Escape pressed");
+            
+            if let Some(emu_channel) = &self.emu_channel {
+                emu_channel.send(EmuMsgIn::Exit).unwrap();
             }
-        });
+
+            self.emu_channel = None;
+
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
     }
 }

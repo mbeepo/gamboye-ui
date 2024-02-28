@@ -16,12 +16,13 @@ pub struct Emu {
     state: Arc<EmuState>,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum EmuStatus {
     Fresh,
     Running,
     Stopped,
     Break,
+    LoadingRom,
 }
 
 impl Default for EmuStatus {
@@ -55,19 +56,38 @@ impl Emu {
         self.inner = Some(emu);
     }
 
-    pub fn run(self) -> Result<(), EmuError> {
+    pub fn run(mut self) -> Result<(), EmuError> {
         *self.state.status.lock() = EmuStatus::Running;
+        let new_rom: Option<Vec<u8>> = None;
 
-        if let Some(mut emu) = self.inner {
+        if let Some(ref mut emu) = self.inner {
             let state = self.state.clone();
 
             loop {
+                match self.ui_channel.try_recv() {
+                    Ok(msg) => {
+                        match msg {
+                            EmuMsgIn::Exit => return Ok(()),
+                            EmuMsgIn::Pause => *self.state.status.lock() = EmuStatus::Stopped,
+                            EmuMsgIn::Resume => *self.state.status.lock() = EmuStatus::Running,
+                            EmuMsgIn::LoadRom(rom) => {
+                                *self.state.status.lock() = EmuStatus::LoadingRom;
+                                break;
+                            },
+                            _ => {}
+                        }
+                    },
+                    Err(mpsc::error::TryRecvError::Empty) => {},
+                    Err(mpsc::error::TryRecvError::Disconnected) => return Ok(()),
+                }
+
                 match *self.state.status.lock() {
                     EmuStatus::Running => { 
                         let (cpu_status, ppu_status) = emu.step();
 
                         match ppu_status {
                             PpuStatus::VBlank => {
+                                println!("The indomitable gamboye");
                                 *self.state.fb.lock() = emu.cpu.ppu.fb.chunks(4).map(|bytes| Color32::from_rgb(bytes[0], bytes[1], bytes[2])).collect();
                                 // *self.state.fb.lock() = emu.cpu.ppu.fb.clone();
                                 self.state.fb_pending.store(true, Ordering::Relaxed);
@@ -81,7 +101,15 @@ impl Emu {
             }
         }
 
-        println!("[EMU] self.inner is None :(");
+        let status = self.state.status.lock().clone();
+
+        match status {
+            EmuStatus::LoadingRom => {
+                self.init(&new_rom.unwrap());
+                return self.run();
+            },
+            _ => {}
+        }
 
         Err(EmuError::Uninitialized)
     }
