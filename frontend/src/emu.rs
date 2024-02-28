@@ -1,4 +1,4 @@
-use std::{sync::{atomic::Ordering, Arc}, time::Instant};
+use std::{sync::{atomic::Ordering, Arc}, thread::sleep, time::Instant};
 
 use egui::{Color32, Context};
 use gbc::{Gbc, PpuStatus};
@@ -68,7 +68,14 @@ impl Emu {
                     Ok(msg) => {
                         match msg {
                             EmuMsgIn::Exit => return Ok(()),
-                            EmuMsgIn::Pause => *self.state.status.lock() = EmuStatus::Stopped,
+                            EmuMsgIn::Pause(duration) => {
+                                *self.state.status.lock() = EmuStatus::Stopped;
+                                let start = Instant::now();
+                                println!("Too fast !! Going sleepo for {}us ({}us)", duration.as_micros(), start.elapsed().as_micros());
+                                sleep(duration);
+                                println!("Sleepo complete ({}us)", start.elapsed().as_micros());
+                                *self.state.status.lock() = EmuStatus::Running;
+                            },
                             EmuMsgIn::Resume => *self.state.status.lock() = EmuStatus::Running,
                             EmuMsgIn::LoadRom(rom) => {
                                 *self.state.status.lock() = EmuStatus::LoadingRom;

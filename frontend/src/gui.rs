@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, sync::{atomic::{AtomicBool, Ordering}, Arc}, time::Instant};
+use std::{collections::VecDeque, sync::{atomic::{AtomicBool, Ordering}, Arc}, time::{Duration, Instant}};
 
 use eframe::App;
 use egui::{mutex::Mutex, pos2, vec2, Color32, KeyboardShortcut, Mesh, Modifiers, Pos2, Rect, Shape, ViewportId};
@@ -141,6 +141,13 @@ impl App for EmuWindow {
                     self.frames = 0;
 
                     ctx.request_repaint_of(self.perf_viewport);
+                } else if self.frames >= MAX_FRAMERATE {
+                    dbg!(self.frames, MAX_FRAMERATE, last_second, last_second.elapsed(), now);
+
+                    if let Some(ref emu_channel) = self.emu_channel {
+                        let duration = Duration::from_millis(1000) - last_second.elapsed();
+                        emu_channel.send(EmuMsgIn::Pause(duration)).unwrap();
+                    }
                 }
             }
                 
