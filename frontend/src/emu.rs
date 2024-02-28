@@ -69,6 +69,7 @@ impl Emu {
                         match ppu_status {
                             PpuStatus::VBlank => {
                                 *self.state.fb.lock() = emu.cpu.ppu.fb.chunks(4).map(|bytes| Color32::from_rgb(bytes[0], bytes[1], bytes[2])).collect();
+                                // *self.state.fb.lock() = emu.cpu.ppu.fb.clone();
                                 self.state.fb_pending.store(true, Ordering::Relaxed);
                                 self.egui_ctx.request_repaint();
                             },
