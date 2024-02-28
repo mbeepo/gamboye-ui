@@ -1,15 +1,12 @@
-use std::sync::Arc;
-
-use egui::{mutex::Mutex, Context, Ui, ViewportBuilder, ViewportId};
+use egui::Context;
 
 use super::PerfState;
 
+pub const MAX_FPS_HISTORY: usize = 10;
 
-pub fn show(perf_state: Mutex<PerfState>) -> impl for<'a> Fn(&'a mut Ui) {
-    |ui: &mut Ui| {
+pub fn show(ctx: &Context, perf_state: &mut PerfState) {
+    egui::TopBottomPanel::top("perf").show(ctx, |ui| {
         let (current, average, min, max) = {
-            let mut perf_state = perf_state.lock();
-            
             if perf_state.fps_history.len() > 0 {
                 if perf_state.fps_history.len() > MAX_FPS_HISTORY {
                     perf_state.fps_history.pop_front();
@@ -37,9 +34,11 @@ pub fn show(perf_state: Mutex<PerfState>) -> impl for<'a> Fn(&'a mut Ui) {
             }
         };
 
-        ui.label(format!("FPS: {current}"));
-        ui.label(format!("Avg. FPS: {average}"));
-        ui.label(format!("Min: {min}"));
-        ui.label(format!("Max: {max}"));
-    }
+        ui.horizontal_wrapped(|ui| {
+            ui.label(format!("FPS: {current}"));
+            ui.label(format!("Avg. FPS: {average}"));
+            ui.label(format!("Min: {min}"));
+            ui.label(format!("Max: {max}"));
+        });
+    });
 }

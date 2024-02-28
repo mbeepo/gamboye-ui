@@ -1,4 +1,4 @@
-use std::sync::{atomic::Ordering, Arc};
+use std::{sync::{atomic::Ordering, Arc}, time::Instant};
 
 use egui::{Color32, Context};
 use gbc::{Gbc, PpuStatus};
@@ -58,7 +58,7 @@ impl Emu {
 
     pub fn run(mut self) -> Result<(), EmuError> {
         *self.state.status.lock() = EmuStatus::Running;
-        let new_rom: Option<Vec<u8>> = None;
+        let mut new_rom: Option<Vec<u8>> = None;
 
         if let Some(ref mut emu) = self.inner {
             let state = self.state.clone();
@@ -72,6 +72,7 @@ impl Emu {
                             EmuMsgIn::Resume => *self.state.status.lock() = EmuStatus::Running,
                             EmuMsgIn::LoadRom(rom) => {
                                 *self.state.status.lock() = EmuStatus::LoadingRom;
+                                new_rom = Some(rom);
                                 break;
                             },
                             _ => {}
@@ -87,9 +88,7 @@ impl Emu {
 
                         match ppu_status {
                             PpuStatus::VBlank => {
-                                println!("The indomitable gamboye");
                                 *self.state.fb.lock() = emu.cpu.ppu.fb.chunks(4).map(|bytes| Color32::from_rgb(bytes[0], bytes[1], bytes[2])).collect();
-                                // *self.state.fb.lock() = emu.cpu.ppu.fb.clone();
                                 self.state.fb_pending.store(true, Ordering::Relaxed);
                                 self.egui_ctx.request_repaint();
                             },

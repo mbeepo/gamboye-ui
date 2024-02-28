@@ -1,19 +1,22 @@
 use std::{collections::VecDeque, sync::{atomic::{AtomicBool, Ordering}, Arc}, time::Instant};
 
-use eframe::{glow::HasContext, App};
-use egui::{mutex::Mutex, panel::PanelState, pos2, vec2, Color32, Mesh, Pos2, Rect, Shape, Vec2, ViewportId};
+use eframe::App;
+use egui::{mutex::Mutex, pos2, vec2, Color32, KeyboardShortcut, Mesh, Modifiers, Pos2, Rect, Shape, ViewportId};
 use tokio::sync::mpsc;
 
 use crate::{comms::EmuMsgIn, emu::{self, Emu, EmuStatus}};
 
-pub const SCALE: usize = 4;
-pub const MAX_FPS_HISTORY: usize = 10;
-pub const BASE_DISPLAY_POS: Pos2 = pos2(0.0, 25.0);
+mod perf;
+
+pub const BASE_DISPLAY_POS: Pos2 = pos2(0.0, 0.0);
+const MAX_FRAMERATE: usize = 60;
+
+const PERF_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, egui::Key::P);
 
 #[derive(Clone, Default)]
 pub struct State {
     pub emu_state: Arc<EmuState>,
-    pub perf_state: Mutex<PerfState>,
+    pub perf_state: PerfState,
 }
 
 #[derive(Default)]
@@ -40,7 +43,7 @@ impl Default for PerfState {
         Self {
             open: false,
             last_second: None,
-            fps_history: VecDeque::with_capacity(MAX_FPS_HISTORY),
+            fps_history: VecDeque::with_capacity(perf::MAX_FPS_HISTORY),
             min_fps: usize::MAX,
             max_fps: 0,
         }
@@ -51,8 +54,7 @@ pub struct EmuWindow {
     emu_channel: Option<mpsc::UnboundedSender<EmuMsgIn>>,
     state: State,
     display_mesh: Mesh,
-    // display_texture: TextureHandle,
-    display_pos: Pos2,
+    display_rect: Rect,
     frames: usize,
     perf_viewport: egui::ViewportId,
 }
@@ -63,7 +65,7 @@ impl EmuWindow {
         let (emu_send, emu_recv) = mpsc::unbounded_channel();
         let state = State::default();
         let display_mesh = Mesh::default();
-        let display_pos = BASE_DISPLAY_POS;
+        let display_rect = Rect::from_min_size(BASE_DISPLAY_POS, vec2(emu::WIDTH as f32, emu::HEIGHT as f32));
         let perf_viewport = ViewportId(egui::Id::new("performance"));
         
         *state.emu_state.fb.lock() = vec![Default::default(); emu::WIDTH * emu::HEIGHT];
@@ -79,7 +81,7 @@ impl EmuWindow {
             emu_channel: Some(emu_send),
             state,
             display_mesh,
-            display_pos,
+            display_rect,
             frames: 0,
             perf_viewport,
         }
@@ -87,66 +89,18 @@ impl EmuWindow {
 }
 
 impl App for EmuWindow {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        self.display_pos = BASE_DISPLAY_POS;
-
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("main_menubar").show(ctx, |ui| {
             ui.menu_button("View", |ui| {
-                ui.checkbox(&mut self.state.perf_state.lock().open, "Performance");
+                ui.checkbox(&mut self.state.perf_state.open, "Performance");
             });
         });
 
-        let perf_state = self.state.perf_state.clone();
-
-        if self.state.perf_state.lock().open {
-            egui::SidePanel::left("perf").show(ctx, |ui| {
-                let (current, average, min, max) = {
-                    let mut perf_state = perf_state.lock();
-                    
-                    if perf_state.fps_history.len() > 0 {
-                        if perf_state.fps_history.len() > MAX_FPS_HISTORY {
-                            perf_state.fps_history.pop_front();
-                        }
-        
-                        let newest = *perf_state.fps_history.back().unwrap();
-                        perf_state.max_fps = perf_state.max_fps.max(newest);
-                        perf_state.min_fps = perf_state.min_fps.min(newest);
-                        
-                        let average: usize = perf_state.fps_history.iter().sum::<usize>() / perf_state.fps_history.len();
-                        
-                        (
-                            format!("{newest}"),
-                            format!("{average}"),
-                            format!("{}", perf_state.min_fps),
-                            format!("{}", perf_state.max_fps)
-                        )
-                    } else {
-                        (
-                            "N/A".to_owned(),
-                            "N/A".to_owned(),
-                            "N/A".to_owned(),
-                            "N/A".to_owned()
-                        )
-                    }
-                };
-        
-                ui.label(format!("FPS: {current}"));
-                ui.label(format!("Avg. FPS: {average}"));
-                ui.label(format!("Min: {min}"));
-                ui.label(format!("Max: {max}"));
-
-                let panel_size = vec2(115.0, 0.0);
-                self.display_pos = BASE_DISPLAY_POS + panel_size;
-                
-                dbg!(crate::WINDOW_SIZE, panel_size);
-
-                if ctx.screen_rect().size().x < crate::WINDOW_SIZE.x + panel_size.x {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(crate::WINDOW_SIZE + panel_size));
-                }
-            });
+        if self.state.perf_state.open {
+            perf::show(ctx, &mut self.state.perf_state);
         }
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        let res = egui::CentralPanel::default().show(ctx, |ui| {
             if self.state.emu_state.fb_pending.load(Ordering::Relaxed) {
                 self.state.emu_state.fb_pending.store(false, Ordering::Relaxed);
                 
@@ -158,17 +112,16 @@ impl App for EmuWindow {
 
                 self.display_mesh.clear();
 
-                let size = ctx.screen_rect().size();
-                let scale = ((size - self.display_pos.to_vec2()) / (vec2(emu::WIDTH as f32, emu::HEIGHT as f32))).min_elem();
-
-                dbg!(scale, self.display_pos);
+                let size = self.display_rect.size();
+                let pos = self.display_rect.min;
+                let scale = (size / vec2(emu::WIDTH as f32, emu::HEIGHT as f32)).min_elem();
                 
                 for y in 0..emu::HEIGHT{
                     for x in 0..emu::WIDTH {
                         self.display_mesh.add_colored_rect(
                             Rect::from_min_max(
-                                self.display_pos + Vec2::new(x as f32 * scale, y as f32 * scale),
-                                self.display_pos + Vec2::new(x as f32 * scale + scale, y as f32 * scale + scale)
+                                pos + vec2(x as f32 * scale, y as f32 * scale),
+                                pos + vec2(x as f32 * scale + scale, y as f32 * scale + scale)
                             ), system_fb[x + y * emu::WIDTH]);
                     }
                 }
@@ -176,16 +129,15 @@ impl App for EmuWindow {
                 self.frames += 1;
                 
                 let now = Instant::now();
-                let mut perf_state = self.state.perf_state.lock();
 
-                let Some(last_second) = perf_state.last_second else {
-                    perf_state.last_second = Some(now);
+                let Some(last_second) = self.state.perf_state.last_second else {
+                    self.state.perf_state.last_second = Some(now);
                     return;
                 };
 
                 if now.duration_since(last_second).as_millis() >= 1000 {
-                    perf_state.last_second = Some(now);
-                    perf_state.fps_history.push_back(self.frames);
+                    self.state.perf_state.last_second = Some(now);
+                    self.state.perf_state.fps_history.push_back(self.frames);
                     self.frames = 0;
 
                     ctx.request_repaint_of(self.perf_viewport);
@@ -196,16 +148,16 @@ impl App for EmuWindow {
             ui.painter().add(display);
         });
 
-        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-            println!("Escape pressed");
-            
-            if let Some(emu_channel) = &self.emu_channel {
-                emu_channel.send(EmuMsgIn::Exit).unwrap();
-            }
+        self.display_rect = res.response.rect;
 
-            self.emu_channel = None;
-
-            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        if ctx.input_mut(|i| i.consume_shortcut(&PERF_SHORTCUT)) {
+            self.state.perf_state.open = !self.state.perf_state.open;
         }
+
+        ctx.input(|i| {
+            if i.key_pressed(egui::Key::Escape) {
+                ctx.send_viewport_cmd_to(ViewportId::ROOT, egui::ViewportCommand::Close);
+            }
+        });
     }
 }
