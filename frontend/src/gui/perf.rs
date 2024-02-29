@@ -1,6 +1,8 @@
+use std::{collections::VecDeque, time::{Duration, Instant}};
+
 use egui::Context;
 
-use super::PerfState;
+use crate::{comms::EmuMsgIn, state::PerfState};
 
 pub const MAX_FPS_HISTORY: usize = 10;
 
@@ -41,4 +43,36 @@ pub fn show(ctx: &Context, perf: &mut PerfState) {
             ui.label(format!("Max: {max}"));
         });
     });
+}
+
+pub fn record_frame(state: &mut super::TopState) {
+    state.perf.frames += 1;
+    
+    let now = Instant::now();
+
+    let Some(last_second) = state.perf.last_second else {
+        state.perf.last_second = Some(now);
+        return;
+    };
+
+    let duration = now.duration_since(last_second).as_millis();
+    dbg!(duration);
+
+    if duration >= 1000 {
+        state.perf.last_second = Some(now);
+        state.perf.fps_history.push_back(state.perf.frames);
+        state.perf.frames = 0;
+    } else if state.perf.frames >= crate::gui::MAX_FRAMERATE {
+        if let Some(ref emu_channel) = state.emu.sender {
+            let awaken = last_second + Duration::from_millis(1000);
+            state.emu.wait_until = Some(awaken);
+            emu_channel.send(EmuMsgIn::Pause).unwrap();
+
+            let awaken_sender = emu_channel.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep_until(awaken.into()).await;
+                awaken_sender.send(EmuMsgIn::Resume).unwrap();
+            });
+        }
+    }
 }

@@ -4,14 +4,15 @@ use std::process::exit;
 
 use eframe::egui;
 use egui::{vec2, Vec2};
-use gui::EmuWindow;
+use gui::TopState;
 
 mod comms;
 mod emu;
 mod gui;
+mod state;
 
-pub const WIDTH: f32 = emu::WIDTH as f32;
-pub const HEIGHT: f32 = emu::HEIGHT as f32 + 25.0;
+const WIDTH: f32 = emu::WIDTH as f32;
+const HEIGHT: f32 = emu::HEIGHT as f32 + 25.0;
 pub const WINDOW_SIZE: Vec2 = vec2(WIDTH, HEIGHT);
 
 #[tokio::main]
@@ -31,5 +32,5 @@ async fn main() -> Result<(), eframe::Error> {
         exit(1);
     };
 
-    eframe::run_native("gamboye", options, Box::new(|cc| Box::new(EmuWindow::new(cc, rom))))
+    eframe::run_native("gamboye", options, Box::new(|cc| Box::new(TopState::new(cc, rom))))
 }
