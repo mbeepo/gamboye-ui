@@ -1,7 +1,7 @@
-use std::{collections::VecDeque, sync::{atomic::{AtomicBool, Ordering}, Arc}, time::{Duration, Instant}};
+use std::{collections::VecDeque, io::{stdout, Write}, sync::{atomic::AtomicBool, Arc}, time::Instant};
 
 use eframe::App;
-use egui::{mutex::Mutex, pos2, vec2, Color32, KeyboardShortcut, Mesh, Modifiers, Pos2, Rect, Shape, ViewportId};
+use egui::{mutex::Mutex, pos2, vec2, Color32, ColorImage, KeyboardShortcut, Mesh, Modifiers, Pos2, Rect, TextureHandle, TextureOptions};
 use tokio::sync::mpsc;
 
 use crate::{comms::EmuMsgIn, emu::{self, Emu, EmuStatus}};
@@ -9,7 +9,6 @@ use crate::{comms::EmuMsgIn, emu::{self, Emu, EmuStatus}};
 mod perf;
 
 pub const BASE_DISPLAY_POS: Pos2 = pos2(0.0, 0.0);
-const MAX_FRAMERATE: usize = 60;
 
 const PERF_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, egui::Key::P);
 
@@ -51,12 +50,14 @@ impl Default for PerfState {
 }
 
 pub struct EmuWindow {
-    emu_channel: Option<mpsc::UnboundedSender<EmuMsgIn>>,
-    state: State,
-    display_mesh: Mesh,
-    display_rect: Rect,
-    frames: usize,
-    perf_viewport: egui::ViewportId,
+    pub emu_channel: Option<mpsc::UnboundedSender<EmuMsgIn>>,
+    pub state: State,
+    pub display_mesh: Mesh,
+    pub display_rect: Rect,
+    pub frames: usize,
+    pub display: ColorImage,
+    pub texture: TextureHandle,
+    pub sleep_until: Option<Instant>,
 }
 
 impl EmuWindow {
@@ -66,30 +67,31 @@ impl EmuWindow {
         let state = State::default();
         let display_mesh = Mesh::default();
         let display_rect = Rect::from_min_size(BASE_DISPLAY_POS, vec2(emu::WIDTH as f32, emu::HEIGHT as f32));
-        let perf_viewport = ViewportId(egui::Id::new("performance"));
         
         *state.emu_state.fb.lock() = vec![Default::default(); emu::WIDTH * emu::HEIGHT];
 
         let mut emu = Emu::new(ctx, emu_recv, state.emu_state.clone());
         emu.init(&rom);
-        
-        tokio::spawn(async move {
-            emu.run().unwrap();
-        });
+        emu.run().unwrap();
 
+        let display = ColorImage::new([emu::WIDTH, emu::HEIGHT], Color32::YELLOW);
+        let texture = cc.egui_ctx.load_texture("emu_display", display.clone(), TextureOptions::NEAREST);
+            
         Self {
             emu_channel: Some(emu_send),
             state,
             display_mesh,
             display_rect,
             frames: 0,
-            perf_viewport,
+            display,
+            texture,
+            sleep_until: None,
         }
     }
 }
 
 impl App for EmuWindow {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("main_menubar").show(ctx, |ui| {
             ui.menu_button("View", |ui| {
                 ui.checkbox(&mut self.state.perf_state.open, "Performance");
@@ -100,71 +102,16 @@ impl App for EmuWindow {
             perf::show(ctx, &mut self.state.perf_state);
         }
 
-        let res = egui::CentralPanel::default().show(ctx, |ui| {
-            if self.state.emu_state.fb_pending.load(Ordering::Relaxed) {
-                self.state.emu_state.fb_pending.store(false, Ordering::Relaxed);
-                
-                let system_fb = self.state.emu_state.fb.lock().clone();
-                if system_fb.len() != (emu::WIDTH * emu::HEIGHT) {
-                    ui.heading(format!("Emulator framebuffer is {} elements, not {}!", system_fb.len(), emu::WIDTH * emu::HEIGHT));
-                    return;
-                }
-
-                self.display_mesh.clear();
-
-                let size = self.display_rect.size();
-                let pos = self.display_rect.min;
-                let scale = (size / vec2(emu::WIDTH as f32, emu::HEIGHT as f32)).min_elem();
-                
-                for y in 0..emu::HEIGHT{
-                    for x in 0..emu::WIDTH {
-                        self.display_mesh.add_colored_rect(
-                            Rect::from_min_max(
-                                pos + vec2(x as f32 * scale, y as f32 * scale),
-                                pos + vec2(x as f32 * scale + scale, y as f32 * scale + scale)
-                            ), system_fb[x + y * emu::WIDTH]);
-                    }
-                }
-
-                self.frames += 1;
-                
-                let now = Instant::now();
-
-                let Some(last_second) = self.state.perf_state.last_second else {
-                    self.state.perf_state.last_second = Some(now);
-                    return;
-                };
-
-                if now.duration_since(last_second).as_millis() >= 1000 {
-                    self.state.perf_state.last_second = Some(now);
-                    self.state.perf_state.fps_history.push_back(self.frames);
-                    self.frames = 0;
-
-                    ctx.request_repaint_of(self.perf_viewport);
-                } else if self.frames >= MAX_FRAMERATE {
-                    dbg!(self.frames, MAX_FRAMERATE, last_second, last_second.elapsed(), now);
-
-                    if let Some(ref emu_channel) = self.emu_channel {
-                        let duration = Duration::from_millis(1000) - last_second.elapsed();
-                        emu_channel.send(EmuMsgIn::Pause(duration)).unwrap();
-                    }
-                }
-            }
-                
-            let display = Shape::Mesh(self.display_mesh.clone());
-            ui.painter().add(display);
-        });
+        let res = emu::show(ctx, self);
 
         self.display_rect = res.response.rect;
+
+        let mut bep = stdout();
+        bep.write_all(b".").unwrap();
+        bep.flush().unwrap();
 
         if ctx.input_mut(|i| i.consume_shortcut(&PERF_SHORTCUT)) {
             self.state.perf_state.open = !self.state.perf_state.open;
         }
-
-        ctx.input(|i| {
-            if i.key_pressed(egui::Key::Escape) {
-                ctx.send_viewport_cmd_to(ViewportId::ROOT, egui::ViewportCommand::Close);
-            }
-        });
     }
 }

@@ -2,8 +2,8 @@ use std::time::Duration;
 
 #[derive(Clone, Debug)]
 pub enum EmuMsgIn {
-    LoadRom(Vec<u8>),
+    LoadRom,
     Exit,
-    Pause(Duration),
+    Pause,
     Resume,
 }
