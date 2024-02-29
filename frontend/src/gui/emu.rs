@@ -2,11 +2,9 @@ use std::sync::atomic::Ordering;
 
 use egui::{vec2, ColorImage, Context, InnerResponse, TextureOptions};
 
-use crate::emu::{HEIGHT, WIDTH};
+use crate::runner::{HEIGHT, WIDTH};
 
 use super::TopState;
-
-
 
 pub fn show(ctx: &Context, state: &mut TopState) -> InnerResponse<()> {
     egui::CentralPanel::default().show(ctx, |ui| {
@@ -16,7 +14,6 @@ pub fn show(ctx: &Context, state: &mut TopState) -> InnerResponse<()> {
             let system_fb = state.emu.atoms.fb.lock().clone();
             if system_fb.len() != (WIDTH * HEIGHT * 3) {
                 ui.heading(format!("Emulator framebuffer is {} elements, not {}!", system_fb.len(), WIDTH * HEIGHT * 3));
-                return;
             }
 
             let new_display = ColorImage::from_rgb([WIDTH, HEIGHT], &system_fb);
@@ -31,10 +28,7 @@ pub fn show(ctx: &Context, state: &mut TopState) -> InnerResponse<()> {
         state.debug.emu_status = *state.emu.atoms.status.lock();
 
         ui.vertical_centered(|ui| {
-            ui.add(egui::Image::from_texture(egui::load::SizedTexture {
-                id: state.emu.texture.id(),
-                size: vec2(WIDTH as f32, HEIGHT as f32)
-            }).maintain_aspect_ratio(true).fit_to_fraction(vec2(1.0, 1.0)));
+            ui.add(egui::Image::from_texture(egui::load::SizedTexture::from_handle(&state.emu.texture)).maintain_aspect_ratio(true).fit_to_fraction(vec2(1.0, 1.0)));
         });
     })
 }

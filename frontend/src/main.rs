@@ -7,12 +7,12 @@ use egui::{vec2, Vec2};
 use gui::TopState;
 
 mod comms;
-mod emu;
+mod runner;
 mod gui;
 mod state;
 
-const WIDTH: f32 = emu::WIDTH as f32;
-const HEIGHT: f32 = emu::HEIGHT as f32 + 25.0;
+const WIDTH: f32 = runner::WIDTH as f32;
+const HEIGHT: f32 = runner::HEIGHT as f32 + 25.0;
 pub const WINDOW_SIZE: Vec2 = vec2(WIDTH, HEIGHT);
 
 #[tokio::main]

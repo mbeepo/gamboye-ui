@@ -1,8 +1,8 @@
 use eframe::App;
-use egui::{pos2, KeyboardShortcut, Modifiers, Pos2,};
+use egui::{pos2, ColorImage, KeyboardShortcut, Modifiers, Pos2, TextureOptions};
 use tokio::sync::mpsc;
 
-use crate::{emu::Emu, state::{DebugState, EmuState, PerfState}};
+use crate::{runner::Emu, state::{DebugState, EmuState, PerfState}};
 
 pub mod emu;
 pub mod perf;
@@ -28,7 +28,7 @@ impl TopState {
         let perf = Default::default();
         let debug = Default::default();
         
-        *emu_state.atoms.fb.lock() = vec![Default::default(); crate::emu::WIDTH * crate::emu::HEIGHT];
+        *emu_state.atoms.fb.lock() = vec![Default::default(); crate::runner::WIDTH * crate::runner::HEIGHT];
 
         let mut emu = Emu::new(ctx, emu_recv, emu_state.atoms.clone());
         emu.init(&rom);
@@ -47,7 +47,16 @@ impl App for TopState {
         egui::TopBottomPanel::top("main_menubar").show(ctx, |ui| {
             ui.menu_button("View", |ui| {
                 ui.checkbox(&mut self.perf.open, "Performance");
-                ui.checkbox(&mut self.debug.open, "Debug");
+
+                if ui.checkbox(&mut self.debug.open, "Debug").changed() {
+                    self.debug.vram = Some(ctx.load_texture(
+                        "debug_vram",
+                        ColorImage::from_rgb([128, 64], &self.emu.atoms.vram.lock().clone()),
+                        TextureOptions::NEAREST,
+                    ));
+                }
+
+                ()
             });
         });
             

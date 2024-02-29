@@ -73,11 +73,9 @@ impl Emu {
                             match msg {
                                 EmuMsgIn::Exit => return,
                                 EmuMsgIn::Pause => {
-                                    println!("Stopping");
                                     *self.state.status.lock() = EmuStatus::Stopped
                                 },
                                 EmuMsgIn::Resume => {
-                                    println!("Starting back up");
                                     *self.state.status.lock() = EmuStatus::Running
                                 },
                                 EmuMsgIn::LoadRom => return, // this instance should be dropped and a new instance should replace it
@@ -94,8 +92,8 @@ impl Emu {
 
                             match ppu_status {
                                 PpuStatus::VBlank => {
-                                    // *self.state.fb.lock() = emu.cpu.ppu.fb.chunks(4).map(|bytes| Color32::from_rgb(bytes[0], bytes[1], bytes[2])).collect();
-                                    *self.state.fb.lock() = emu.cpu.ppu.fb.chunks(4).flat_map(|bytes| [bytes[0], bytes[1], bytes[2]]).collect();
+                                    *self.state.fb.lock() = emu.cpu.ppu.fb.clone();
+                                    emu.cpu.ppu.debug_show(&emu.cpu.memory, [16, 8], &mut *self.state.vram.lock());
                                     self.state.fb_pending.store(true, Ordering::Relaxed);
                                     self.egui_ctx.request_repaint();
                                 },

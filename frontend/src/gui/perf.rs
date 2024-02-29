@@ -56,7 +56,6 @@ pub fn record_frame(state: &mut super::TopState) {
     };
 
     let duration = now.duration_since(last_second).as_millis();
-    dbg!(duration);
 
     if duration >= 1000 {
         state.perf.last_second = Some(now);

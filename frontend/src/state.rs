@@ -3,16 +3,27 @@ use std::{collections::VecDeque, sync::{atomic::AtomicBool, Arc}, time::Instant}
 use egui::{mutex::Mutex, vec2, Color32, ColorImage, Mesh, Rect, TextureHandle, TextureOptions};
 use tokio::sync::mpsc;
 
-use crate::{comms::EmuMsgIn, emu::{self, EmuStatus}, gui::BASE_DISPLAY_POS};
+use crate::{comms::EmuMsgIn, runner::{self, EmuStatus}, gui::BASE_DISPLAY_POS};
 
-#[derive(Default)]
 pub struct InnerEmuState {
     /// This should always be emu::WIDTH * emu::HEIGHT elements
     // pub fb: Mutex<Vec<Color32>>,
     /// This should always be (emu::WIDTH * emu::HEIGHT * 4) elements
     pub fb: Mutex<Vec<u8>>,
+    pub vram: Mutex<Vec<u8>>,
     pub status: Mutex<EmuStatus>,
     pub fb_pending: AtomicBool,
+}
+
+impl Default for InnerEmuState {
+    fn default() -> Self {
+        Self {
+            fb: Default::default(),
+            vram: Mutex::new(vec![0; 128 * 64 * 3]),
+            status: Default::default(),
+            fb_pending: Default::default(),
+        }
+    }
 }
 
 pub struct EmuState {
@@ -27,8 +38,8 @@ pub struct EmuState {
 
 impl EmuState {
     pub fn new(ctx: &egui::Context, sender: mpsc::UnboundedSender<EmuMsgIn>) -> Self {
-        let display_rect = Rect::from_min_size(BASE_DISPLAY_POS, vec2(emu::WIDTH as f32, emu::HEIGHT as f32));
-        let display = ColorImage::new([emu::WIDTH, emu::HEIGHT], Color32::YELLOW);
+        let display_rect = Rect::from_min_size(BASE_DISPLAY_POS, vec2(runner::WIDTH as f32, runner::HEIGHT as f32));
+        let display = ColorImage::new([runner::WIDTH, runner::HEIGHT], Color32::YELLOW);
         let texture = ctx.load_texture("emu_display", display.clone(), TextureOptions::NEAREST);
         let display_mesh = Mesh::with_texture(texture.id());
 
@@ -67,8 +78,9 @@ impl Default for PerfState {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 pub struct DebugState {
     pub open: bool,
     pub emu_status: EmuStatus,
+    pub vram: Option<TextureHandle>,
 }
