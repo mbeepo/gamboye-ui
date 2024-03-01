@@ -3,7 +3,7 @@ use std::{collections::VecDeque, sync::{atomic::AtomicBool, Arc}, time::Instant}
 use egui::{mutex::Mutex, vec2, Color32, ColorImage, Mesh, Rect, TextureHandle, TextureOptions};
 use tokio::sync::mpsc;
 
-use crate::{comms::EmuMsgIn, runner::{self, EmuStatus}, gui::BASE_DISPLAY_POS};
+use crate::{comms::{EmuMsgIn, EmuMsgOut}, gui::BASE_DISPLAY_POS, runner::{self, Breakpoints, EmuStatus}};
 
 pub struct InnerEmuState {
     /// This should always be emu::WIDTH * emu::HEIGHT elements
@@ -30,6 +30,7 @@ pub struct EmuState {
     pub atoms: Arc<InnerEmuState>,
     pub wait_until: Option<Instant>,
     pub sender: Option<mpsc::UnboundedSender<EmuMsgIn>>,
+    pub receiver: mpsc::UnboundedReceiver<EmuMsgOut>,
     pub display_mesh: Mesh,
     pub display_rect: Rect,
     pub display: ColorImage,
@@ -37,7 +38,7 @@ pub struct EmuState {
 }
 
 impl EmuState {
-    pub fn new(ctx: &egui::Context, sender: mpsc::UnboundedSender<EmuMsgIn>) -> Self {
+    pub fn new(ctx: &egui::Context, sender: mpsc::UnboundedSender<EmuMsgIn>, receiver: mpsc::UnboundedReceiver<EmuMsgOut>) -> Self {
         let display_rect = Rect::from_min_size(BASE_DISPLAY_POS, vec2(runner::WIDTH as f32, runner::HEIGHT as f32));
         let display = ColorImage::new([runner::WIDTH, runner::HEIGHT], Color32::YELLOW);
         let texture = ctx.load_texture("emu_display", display.clone(), TextureOptions::NEAREST);
@@ -47,6 +48,7 @@ impl EmuState {
             atoms: Default::default(),
             wait_until: None,
             sender: Some(sender),
+            receiver,
             display_mesh,
             display_rect,
             display,
@@ -83,4 +85,8 @@ pub struct DebugState {
     pub open: bool,
     pub emu_status: EmuStatus,
     pub vram: Option<TextureHandle>,
+    pub last_instruction: Option<gbc::Instruction>,
+    pub regs: Option<gbc::Registers>,
+    pub stopped: bool,
+    pub breakpoints: Breakpoints,
 }
