@@ -4,7 +4,7 @@ use egui::Context;
 use gbc::{CpuEvent, CpuStatus, Gbc, PpuStatus};
 use tokio::sync::mpsc;
 
-use crate::{comms::{EmuMsgIn, EmuMsgOut}, state::InnerEmuState};
+use crate::{comms::{EmuMsgIn, EmuMsgOut}, state::{InnerEmuState, StateDump}};
 
 pub const WIDTH: usize = 160;
 pub const HEIGHT: usize = 144;
@@ -59,7 +59,7 @@ impl From<Breakpoint> for gbc::CpuEvent {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Breakpoints {
     pub zero_flag: bool,
-    pub sub_flag: bool,
+    pub subtract_flag: bool,
     pub half_carry_flag: bool,
     pub carry_flag: bool,
 }
@@ -68,7 +68,7 @@ impl Breakpoints {
     pub fn set(&mut self, breakpoint: Breakpoint) {
         match breakpoint {
             Breakpoint::Zero => self.zero_flag = true,
-            Breakpoint::Subtract => self.sub_flag = true,
+            Breakpoint::Subtract => self.subtract_flag = true,
             Breakpoint::HalfCarry => self.half_carry_flag = true,
             Breakpoint::Carry => self.carry_flag = true,
         }
@@ -77,7 +77,7 @@ impl Breakpoints {
     pub fn unset(&mut self, breakpoint: Breakpoint) {
         match breakpoint {
             Breakpoint::Zero => self.zero_flag = false,
-            Breakpoint::Subtract => self.sub_flag = false,
+            Breakpoint::Subtract => self.subtract_flag = false,
             Breakpoint::HalfCarry => self.half_carry_flag = false,
             Breakpoint::Carry => self.carry_flag = false,
         }
@@ -122,10 +122,13 @@ impl Emu {
 
             tokio::spawn(async move {
                 *self.state.status.lock() = EmuStatus::Running;
+                // *self.state.status.lock() = EmuStatus::Stopped;
 
                 loop {
                     match self.receiver.try_recv() {
                         Ok(msg) => {
+                            dbg!(msg);
+
                             match msg {
                                 EmuMsgIn::Exit => return,
                                 EmuMsgIn::Pause => {
@@ -171,10 +174,7 @@ impl Emu {
                         EmuStatus::Stepping => {
                             let cpu_status = self.step(&mut emu);
                             match cpu_status {
-                                Ok(CpuStatus::Run(instruction)) => { self.sender.send(EmuMsgOut::State {
-                                    instruction,
-                                    regs: emu.cpu.regs,
-                                }).unwrap(); },
+                                Ok(CpuStatus::Run(instruction)) => self.dump_state(&emu, instruction).unwrap(),
                                 _ => {}
                             }
 
@@ -198,24 +198,33 @@ impl Emu {
         let (cpu_status, ppu_status) = emu.step();
 
         match ppu_status {
-            PpuStatus::VBlank => {
-                println!("VBlank");
+            PpuStatus::EnterVBlank => {
                 *self.state.fb.lock() = emu.cpu.ppu.fb.clone();
                 emu.cpu.ppu.debug_show(&emu.cpu.memory, [16, 8], &mut *self.state.vram.lock());
                 self.state.fb_pending.store(true, Ordering::Relaxed);
                 self.egui_ctx.request_repaint();
 
                 match cpu_status {
-                    Ok(CpuStatus::Run(instruction)) => { self.sender.send(EmuMsgOut::State {
-                        instruction,
-                        regs: emu.cpu.regs,
-                    }).unwrap(); },
+                    Ok(CpuStatus::Run(instruction)) => self.dump_state(emu, instruction).unwrap(),
                     _ => {}
                 }
             },
-            PpuStatus::Drawing => {}
+            _ => {}
         }
 
         cpu_status
+    }
+
+    fn dump_state(&self, emu: &Gbc, instruction: gbc::Instruction) -> Result<(), mpsc::error::SendError<EmuMsgOut>> {
+        let regs = emu.cpu.regs;
+        let io_regs = emu.cpu.dump_io_regs();
+
+        let state = StateDump {
+            instruction,
+            regs,
+            io_regs,
+        };
+        
+        self.sender.send(EmuMsgOut::State(state)) 
     }
 }

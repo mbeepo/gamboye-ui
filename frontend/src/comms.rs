@@ -1,4 +1,4 @@
-use crate::runner::Breakpoint;
+use crate::{runner::Breakpoint, state::StateDump};
 
 #[derive(Clone, Copy, Debug)]
 pub enum EmuMsgIn {
@@ -13,8 +13,5 @@ pub enum EmuMsgIn {
 
 #[derive(Clone, Copy, Debug)]
 pub enum EmuMsgOut {
-    State {
-        instruction: gbc::Instruction,
-        regs: gbc::Registers,
-    },
+    State(StateDump),
 }

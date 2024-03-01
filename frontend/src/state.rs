@@ -85,8 +85,14 @@ pub struct DebugState {
     pub open: bool,
     pub emu_status: EmuStatus,
     pub vram: Option<TextureHandle>,
-    pub last_instruction: Option<gbc::Instruction>,
-    pub regs: Option<gbc::Registers>,
+    pub emu_state: Option<StateDump>,
     pub stopped: bool,
     pub breakpoints: Breakpoints,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct StateDump {
+    pub instruction: gbc::Instruction,
+    pub regs: gbc::Registers,
+    pub io_regs: gbc::IoRegs,
 }

@@ -51,12 +51,8 @@ impl App for TopState {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if let Ok(msg) = self.emu.receiver.try_recv() {
             match msg {
-                EmuMsgOut::State {
-                    instruction,
-                    regs,
-                } => {
-                    self.debug.last_instruction = Some(instruction);
-                    self.debug.regs = Some(regs);
+                EmuMsgOut::State(state) => {
+                    self.debug.emu_state = Some(state);
                 }
             }
         }

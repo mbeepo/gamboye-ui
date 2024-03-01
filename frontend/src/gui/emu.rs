@@ -18,10 +18,7 @@ pub fn show(ctx: &Context, state: &mut TopState) -> InnerResponse<()> {
 
             let new_display = ColorImage::from_rgb([WIDTH, HEIGHT], &system_fb);
 
-            println!("Drawing fb");
-
             if new_display != state.emu.display {
-                println!("Updating texture");
                 state.emu.texture = ctx.load_texture("emu_display", new_display, TextureOptions::NEAREST);
             }
 
