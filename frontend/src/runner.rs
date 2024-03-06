@@ -1,7 +1,7 @@
 use std::{fmt::Display, sync::{atomic::Ordering, Arc}};
 
 use egui::Context;
-use gbc::{CpuEvent, CpuStatus, Gbc, PpuStatus};
+use gbc::{CpuEvent, CpuReg, CpuStatus, Gbc, PpuStatus};
 use tokio::sync::mpsc;
 
 use crate::{comms::{EmuMsgIn, EmuMsgOut}, state::{InnerEmuState, StateDump}};
@@ -28,7 +28,8 @@ impl Display for EmuStatus {
 
 impl Default for EmuStatus {
     fn default() -> Self {
-        Self::Fresh
+        // Self::Fresh
+        Self::Stopped
     }
 }
 
@@ -40,6 +41,9 @@ pub enum EmuError {
 
 #[derive(Clone, Copy, Debug)]
 pub enum Breakpoint {
+    A, B,
+    C, D,
+    H, L,
     Zero,
     Subtract,
     HalfCarry,
@@ -49,6 +53,12 @@ pub enum Breakpoint {
 impl From<Breakpoint> for gbc::CpuEvent {
     fn from(value: Breakpoint) -> Self {
         match value {
+            Breakpoint::A => Self::Reg(CpuReg::A),
+            Breakpoint::B => Self::Reg(CpuReg::B),
+            Breakpoint::C => Self::Reg(CpuReg::C),
+            Breakpoint::D => Self::Reg(CpuReg::D),
+            Breakpoint::H => Self::Reg(CpuReg::H),
+            Breakpoint::L => Self::Reg(CpuReg::L),
             Breakpoint::Zero => Self::Flag(gbc::CpuFlag::Zero),
             Breakpoint::Subtract => Self::Flag(gbc::CpuFlag::Subtract),
             Breakpoint::HalfCarry => Self::Flag(gbc::CpuFlag::HalfCarry),
@@ -63,11 +73,23 @@ pub struct Breakpoints {
     pub subtract_flag: bool,
     pub half_carry_flag: bool,
     pub carry_flag: bool,
+    pub a_reg: bool,
+    pub b_reg: bool,
+    pub c_reg: bool,
+    pub d_reg: bool,
+    pub h_reg: bool,
+    pub l_reg: bool,
 }
 
 impl Breakpoints {
     pub fn set(&mut self, breakpoint: Breakpoint) {
         match breakpoint {
+            Breakpoint::A => self.a_reg = true,
+            Breakpoint::B => self.b_reg = true,
+            Breakpoint::C => self.c_reg = true,
+            Breakpoint::D => self.d_reg = true,
+            Breakpoint::H => self.h_reg = true,
+            Breakpoint::L => self.l_reg = true,
             Breakpoint::Zero => self.zero_flag = true,
             Breakpoint::Subtract => self.subtract_flag = true,
             Breakpoint::HalfCarry => self.half_carry_flag = true,
@@ -77,6 +99,12 @@ impl Breakpoints {
 
     pub fn unset(&mut self, breakpoint: Breakpoint) {
         match breakpoint {
+            Breakpoint::A => self.a_reg = false,
+            Breakpoint::B => self.b_reg = true,
+            Breakpoint::C => self.c_reg = true,
+            Breakpoint::D => self.d_reg = true,
+            Breakpoint::H => self.h_reg = true,
+            Breakpoint::L => self.l_reg = true,
             Breakpoint::Zero => self.zero_flag = false,
             Breakpoint::Subtract => self.subtract_flag = false,
             Breakpoint::HalfCarry => self.half_carry_flag = false,
@@ -122,8 +150,7 @@ impl Emu {
             self.inner = None;
 
             tokio::spawn(async move {
-                *self.state.status.lock() = EmuStatus::Running;
-                // *self.state.status.lock() = EmuStatus::Stopped;
+                // *self.state.status.lock() = EmuStatus::Running;
 
                 loop {
                     match self.receiver.try_recv() {
@@ -175,8 +202,10 @@ impl Emu {
                             let cpu_status = self.step(&mut emu);
 
                             match cpu_status {
-                                Ok(CpuStatus::Break(_)) => {
+                                Ok(CpuStatus::Break(instruction, _)) => {
                                     *self.state.status.lock() = EmuStatus::Break;
+                                    self.dump_state(&emu, instruction).unwrap();
+
                                     println!("Breakpoint reached");
                                 },
                                 _ => {}
