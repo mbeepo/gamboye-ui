@@ -65,12 +65,12 @@ pub fn record_frame(state: &mut super::TopState) {
         if let Some(ref emu_channel) = state.emu.sender {
             let awaken = last_second + Duration::from_millis(1000);
             state.emu.wait_until = Some(awaken);
-            emu_channel.send(EmuMsgIn::Pause).unwrap();
+            emu_channel.send(EmuMsgIn::FrameLimit).unwrap();
 
             let awaken_sender = emu_channel.clone();
             tokio::spawn(async move {
                 tokio::time::sleep_until(awaken.into()).await;
-                awaken_sender.send(EmuMsgIn::Resume).unwrap();
+                awaken_sender.send(EmuMsgIn::FrameUnlimit).unwrap();
             });
         }
     }

@@ -17,6 +17,7 @@ pub enum EmuStatus {
     Break,
     LoadingRom,
     Stepping,
+    FrameLimited,
 }
 
 impl Display for EmuStatus {
@@ -149,6 +150,16 @@ impl Emu {
                                 EmuMsgIn::UnsetBreakpoint(breakpoint) => {
                                     self.breakpoints.unset(breakpoint);
                                     emu.cpu.breakpoint_controls.unset(breakpoint.into());
+                                },
+                                EmuMsgIn::FrameLimit => {
+                                    if self.state.status.lock().clone() == EmuStatus::Running {
+                                        *self.state.status.lock() = EmuStatus::FrameLimited;
+                                    }
+                                },
+                                EmuMsgIn::FrameUnlimit => {
+                                    if self.state.status.lock().clone() == EmuStatus::FrameLimited {
+                                        *self.state.status.lock() = EmuStatus::Running;
+                                    }
                                 }
                                 _ => {}
                             }
@@ -200,7 +211,7 @@ impl Emu {
         match ppu_status {
             PpuStatus::EnterVBlank => {
                 *self.state.fb.lock() = emu.cpu.ppu.fb.clone();
-                emu.cpu.ppu.debug_show(&emu.cpu.memory, [16, 8], &mut *self.state.vram.lock());
+                emu.cpu.ppu.debug_show(&emu.cpu.memory, [16, 24], &mut *self.state.vram.lock());
                 self.state.fb_pending.store(true, Ordering::Relaxed);
                 self.egui_ctx.request_repaint();
 

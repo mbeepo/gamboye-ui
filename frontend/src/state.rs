@@ -19,7 +19,7 @@ impl Default for InnerEmuState {
     fn default() -> Self {
         Self {
             fb: Default::default(),
-            vram: Mutex::new(vec![0; 128 * 64 * 3]),
+            vram: Mutex::new(vec![0; 128 * 192 * 3]),
             status: Default::default(),
             fb_pending: Default::default(),
         }

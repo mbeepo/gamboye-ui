@@ -111,7 +111,7 @@ fn show_reg(ui: &mut egui::Ui, name: &str, text: &str) {
 pub fn load_vram_texture(ctx: &Context, vram: &[u8]) -> TextureHandle {
     ctx.load_texture(
         "debug_vram",
-        ColorImage::from_rgb([128, 64], vram),
+        ColorImage::from_rgb([128, 192], vram),
         TextureOptions::NEAREST,
     )
 }

@@ -9,6 +9,8 @@ pub enum EmuMsgIn {
     Step(usize),
     SetBreakpoint(Breakpoint),
     UnsetBreakpoint(Breakpoint),
+    FrameLimit,
+    FrameUnlimit,
 }
 
 #[derive(Clone, Copy, Debug)]
