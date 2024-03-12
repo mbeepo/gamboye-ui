@@ -1,4 +1,4 @@
-use egui::{load::SizedTexture, ColorImage, Context, TextureHandle, TextureOptions};
+use egui::{epaint::text::Row, load::SizedTexture, ColorImage, Context, TextureHandle, TextureOptions};
 use tokio::sync::mpsc;
 
 use crate::{comms::EmuMsgIn, runner::Breakpoint, state::DebugState};
@@ -44,10 +44,28 @@ pub fn show(ctx: &Context, state: &mut DebugState, sender: &mpsc::UnboundedSende
                         breakpoint_toggle(ui, &mut state.breakpoints.carry_flag, "C", Breakpoint::Carry, sender);
                     });
                 });
+                
+                ui.separator();
+                ui.strong("Memory Set");
+                ui.horizontal(|ui| {
+                    ui.text_edit_singleline(&mut state.breakpoints.mem_write);
+                    
+                    let mut checked = false;
+                    if ui.checkbox(&mut checked, "Set").changed() {
+                        if let Ok(addr) = text.parse() {
+                            let breakpoint = Breakpoint::MemoryWrite(addr);
+                            if checked {
+                                sender.send(EmuMsgIn::SetBreakpoint(breakpoint)).unwrap();
+                            } else {
+                                sender.send(EmuMsgIn::UnsetBreakpoint(breakpoint)).unwrap();
+                            }
+                        }
+                    }
+                });
             });
 
             ui.strong("Last Instruction");
-            ui.label(format!("{:?}", state.emu_state.map(|s| s.instruction).unwrap_or(gbc::Instruction::NOP)));
+            ui.label(format!("{:?}", state.emu_state.as_ref().map(|s| s.instruction).unwrap_or(gbc::Instruction::NOP)));
 
             ui.strong("Emu Status");
             ui.label(format!("{}", state.emu_status));
@@ -59,19 +77,42 @@ pub fn show(ctx: &Context, state: &mut DebugState, sender: &mpsc::UnboundedSende
 
             ui.vertical(|ui| {
                 ui.strong("Registers");
-                show_reg_hex_word(ui, "PC", state.emu_state.map(|s| s.regs.pc).unwrap_or(0));
-                show_reg_hex(ui, "A", state.emu_state.map(|s| s.regs.a).unwrap_or(0));
-                show_reg_hex(ui, "B", state.emu_state.map(|s| s.regs.b).unwrap_or(0));
-                show_reg_hex(ui, "C", state.emu_state.map(|s| s.regs.c).unwrap_or(0));
-                show_reg_hex(ui, "D", state.emu_state.map(|s| s.regs.d).unwrap_or(0));
-                show_reg_hex(ui, "H", state.emu_state.map(|s| s.regs.h).unwrap_or(0));
-                show_reg_hex(ui, "L", state.emu_state.map(|s| s.regs.l).unwrap_or(0));
+                show_reg_hex_word(ui, "PC", state.emu_state.as_ref().map(|s| s.regs.pc).unwrap_or(0));
+                show_reg_hex(ui, "A", state.emu_state.as_ref().map(|s| s.regs.a).unwrap_or(0));
+                show_reg_hex(ui, "B", state.emu_state.as_ref().map(|s| s.regs.b).unwrap_or(0));
+                show_reg_hex(ui, "C", state.emu_state.as_ref().map(|s| s.regs.c).unwrap_or(0));
+                show_reg_hex(ui, "D", state.emu_state.as_ref().map(|s| s.regs.d).unwrap_or(0));
+                show_reg_hex(ui, "H", state.emu_state.as_ref().map(|s| s.regs.h).unwrap_or(0));
+                show_reg_hex(ui, "L", state.emu_state.as_ref().map(|s| s.regs.l).unwrap_or(0));
             });
 
             ui.vertical(|ui| {
                 ui.strong("IO Registers");
-                show_reg_bin(ui, "LCDC", state.emu_state.map(|s| s.io_regs.lcdc).unwrap_or(0));
+                show_reg_bin(ui, "LCDC", state.emu_state.as_ref().map(|s| s.io_regs.lcdc).unwrap_or(0));
             });
+        });
+    });
+
+    egui::SidePanel::right("debug-memory").show(ctx, |ui| {
+        let text_style = egui::TextStyle::Body;
+        let row_height = ui.text_style_height(&text_style);
+
+        egui::ScrollArea::vertical().show_rows(ui, row_height, (u16::MAX / 16).into(), |ui, row_range| {
+            if let Some(memory) = state.emu_state.as_ref().map(|s| &s.memory) {
+                for row in row_range {
+                    let y = row * 16;
+
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        ui.strong(format!("${y:02X}"));
+
+                        for x in 0..16 {
+                            let current = memory[y as usize + x as usize];
+                            ui.label(format!("{current:02X}"));
+                        }
+                    });
+                }
+            }
         });
     });
 }

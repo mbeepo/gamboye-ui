@@ -90,9 +90,10 @@ pub struct DebugState {
     pub breakpoints: Breakpoints,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct StateDump {
     pub instruction: gbc::Instruction,
     pub regs: gbc::Registers,
     pub io_regs: gbc::IoRegs,
+    pub memory: Vec<u8>,
 }

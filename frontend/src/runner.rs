@@ -48,6 +48,7 @@ pub enum Breakpoint {
     Subtract,
     HalfCarry,
     Carry,
+    MemoryWrite(u16),
 }
 
 impl From<Breakpoint> for gbc::CpuEvent {
@@ -63,11 +64,12 @@ impl From<Breakpoint> for gbc::CpuEvent {
             Breakpoint::Subtract => Self::Flag(gbc::CpuFlag::Subtract),
             Breakpoint::HalfCarry => Self::Flag(gbc::CpuFlag::HalfCarry),
             Breakpoint::Carry => Self::Flag(gbc::CpuFlag::Carry),
+            Breakpoint::MemoryWrite(addr) => Self::MemoryWrite(addr)
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Breakpoints {
     pub zero_flag: bool,
     pub subtract_flag: bool,
@@ -79,39 +81,41 @@ pub struct Breakpoints {
     pub d_reg: bool,
     pub h_reg: bool,
     pub l_reg: bool,
+    pub mem_write: String,
 }
 
-impl Breakpoints {
-    pub fn set(&mut self, breakpoint: Breakpoint) {
-        match breakpoint {
-            Breakpoint::A => self.a_reg = true,
-            Breakpoint::B => self.b_reg = true,
-            Breakpoint::C => self.c_reg = true,
-            Breakpoint::D => self.d_reg = true,
-            Breakpoint::H => self.h_reg = true,
-            Breakpoint::L => self.l_reg = true,
-            Breakpoint::Zero => self.zero_flag = true,
-            Breakpoint::Subtract => self.subtract_flag = true,
-            Breakpoint::HalfCarry => self.half_carry_flag = true,
-            Breakpoint::Carry => self.carry_flag = true,
-        }
-    }
+// impl Breakpoints {
+//     pub fn set(&mut self, breakpoint: Breakpoint) {
+//         match breakpoint {
+//             Breakpoint::A => self.a_reg = true,
+//             Breakpoint::B => self.b_reg = true,
+//             Breakpoint::C => self.c_reg = true,
+//             Breakpoint::D => self.d_reg = true,
+//             Breakpoint::H => self.h_reg = true,
+//             Breakpoint::L => self.l_reg = true,
+//             Breakpoint::Zero => self.zero_flag = true,
+//             Breakpoint::Subtract => self.subtract_flag = true,
+//             Breakpoint::HalfCarry => self.half_carry_flag = true,
+//             Breakpoint::Carry => self.carry_flag = true,
+//         }
+//     }
 
-    pub fn unset(&mut self, breakpoint: Breakpoint) {
-        match breakpoint {
-            Breakpoint::A => self.a_reg = false,
-            Breakpoint::B => self.b_reg = true,
-            Breakpoint::C => self.c_reg = true,
-            Breakpoint::D => self.d_reg = true,
-            Breakpoint::H => self.h_reg = true,
-            Breakpoint::L => self.l_reg = true,
-            Breakpoint::Zero => self.zero_flag = false,
-            Breakpoint::Subtract => self.subtract_flag = false,
-            Breakpoint::HalfCarry => self.half_carry_flag = false,
-            Breakpoint::Carry => self.carry_flag = false,
-        }
-    }
-}
+//     pub fn unset(&mut self, breakpoint: Breakpoint) {
+//         match breakpoint {
+//             Breakpoint::A => self.a_reg = false,
+//             Breakpoint::B => self.b_reg = true,
+//             Breakpoint::C => self.c_reg = true,
+//             Breakpoint::D => self.d_reg = true,
+//             Breakpoint::H => self.h_reg = true,
+//             Breakpoint::L => self.l_reg = true,
+//             Breakpoint::Zero => self.zero_flag = false,
+//             Breakpoint::Subtract => self.subtract_flag = false,
+//             Breakpoint::HalfCarry => self.half_carry_flag = false,
+//             Breakpoint::Carry => self.carry_flag = false,
+//             Breakpoint::MemoryWrite()
+//         }
+//     }
+// }
 
 pub struct Emu {
     inner: Option<Gbc>,
@@ -150,7 +154,7 @@ impl Emu {
             self.inner = None;
 
             tokio::spawn(async move {
-                // *self.state.status.lock() = EmuStatus::Running;
+                *self.state.status.lock() = EmuStatus::Running;
 
                 loop {
                     match self.receiver.try_recv() {
@@ -171,11 +175,11 @@ impl Emu {
                                     *self.state.status.lock() = EmuStatus::Stepping;
                                 },
                                 EmuMsgIn::SetBreakpoint(breakpoint) => {
-                                    self.breakpoints.set(breakpoint);
+                                    // self.breakpoints.set(breakpoint);
                                     emu.cpu.breakpoint_controls.set(breakpoint.into());
                                 },
                                 EmuMsgIn::UnsetBreakpoint(breakpoint) => {
-                                    self.breakpoints.unset(breakpoint);
+                                    // self.breakpoints.unset(breakpoint);
                                     emu.cpu.breakpoint_controls.unset(breakpoint.into());
                                 },
                                 EmuMsgIn::FrameLimit => {
@@ -258,11 +262,13 @@ impl Emu {
     fn dump_state(&self, emu: &Gbc, instruction: gbc::Instruction) -> Result<(), mpsc::error::SendError<EmuMsgOut>> {
         let regs = emu.cpu.regs;
         let io_regs = emu.cpu.dump_io_regs();
+        let memory = emu.cpu.memory.load_block(0, u16::MAX);
 
         let state = StateDump {
             instruction,
             regs,
             io_regs,
+            memory,
         };
         
         self.sender.send(EmuMsgOut::State(state)) 

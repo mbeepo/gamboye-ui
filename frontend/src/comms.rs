@@ -13,7 +13,7 @@ pub enum EmuMsgIn {
     FrameUnlimit,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum EmuMsgOut {
     State(StateDump),
 }
