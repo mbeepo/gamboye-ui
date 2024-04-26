@@ -144,7 +144,7 @@ impl Emu {
 
     pub fn init(&mut self, rom: &[u8]) {
         let mbc = gbc::get_mbc(rom);
-        let mut emu = Gbc::new(mbc, true, true);
+        let mut emu = Gbc::new(mbc, false, true);
         emu.load_rom(rom);
         self.inner = Some(emu);
     }
