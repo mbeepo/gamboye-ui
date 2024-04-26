@@ -1,8 +1,8 @@
 use eframe::App;
-use egui::{pos2, KeyboardShortcut, Modifiers, Pos2, ViewportId};
+use egui::{pos2, Key, KeyboardShortcut, Modifiers, Pos2, ViewportId};
 use tokio::sync::mpsc;
 
-use crate::{comms::EmuMsgOut, runner::{Emu, EmuStatus}, state::{DebugState, EmuState, PerfState}};
+use crate::{comms::{self, EmuMsgOut}, runner::{Emu, EmuStatus}, state::{DebugState, EmuState, PerfState}};
 
 pub mod emu;
 pub mod perf;
@@ -98,11 +98,5 @@ impl App for TopState {
         if ctx.input_mut(|i| i.consume_shortcut(&PERF_SHORTCUT)) {
             self.perf.open = !self.perf.open;
         }
-
-        ctx.input(|i| {
-            if i.key_pressed(egui::Key::Escape) {
-                ctx.send_viewport_cmd_to(ViewportId::ROOT, egui::ViewportCommand::Close);
-            }
-        });
     }
 }

@@ -11,6 +11,8 @@ pub enum EmuMsgIn {
     UnsetBreakpoint(Breakpoint),
     FrameLimit,
     FrameUnlimit,
+    ButtonPressed(gbc::Button),
+    ButtonReleased(gbc::Button),
 }
 
 #[derive(Clone, Debug)]

@@ -57,13 +57,24 @@ pub fn record_frame(state: &mut super::TopState) {
 
     let duration = now.duration_since(last_second).as_millis();
 
+    dbg!(duration);
+
     if duration >= 1000 {
         state.perf.last_second = Some(now);
         state.perf.fps_history.push_back(state.perf.frames);
         state.perf.frames = 0;
-    } else if state.perf.frames >= crate::gui::MAX_FRAMERATE {
+    }
+}
+
+pub fn ratelimit(state: &mut super::TopState) {
+    let now = Instant::now();
+    let duration = now.duration_since(state.perf.last_frame).as_micros();
+    const MIN_FRAMETIME: u64 = 1_000_000 / crate::gui::MAX_FRAMERATE as u64;
+
+    // too fast >:(
+    if duration < MIN_FRAMETIME as u128 {
         if let Some(ref emu_channel) = state.emu.sender {
-            let awaken = last_second + Duration::from_millis(1000);
+            let awaken = state.perf.last_frame + Duration::from_micros(MIN_FRAMETIME);
             state.emu.wait_until = Some(awaken);
             emu_channel.send(EmuMsgIn::FrameLimit).unwrap();
 
@@ -74,4 +85,6 @@ pub fn record_frame(state: &mut super::TopState) {
             });
         }
     }
+    
+    state.perf.last_frame = Instant::now();
 }

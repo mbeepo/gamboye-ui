@@ -144,7 +144,7 @@ impl Emu {
 
     pub fn init(&mut self, rom: &[u8]) {
         let mbc = gbc::get_mbc(rom);
-        let mut emu = Gbc::new(mbc, false, true);
+        let mut emu = Gbc::new(mbc, true, true);
         emu.load_rom(rom);
         self.inner = Some(emu);
     }
@@ -159,38 +159,44 @@ impl Emu {
                 loop {
                     match self.receiver.try_recv() {
                         Ok(msg) => {
-                            dbg!(msg);
+                            use EmuMsgIn::*;
 
                             match msg {
-                                EmuMsgIn::Exit => return,
-                                EmuMsgIn::Pause => {
+                                Exit => return,
+                                Pause => {
                                     *self.state.status.lock() = EmuStatus::Stopped
                                 },
-                                EmuMsgIn::Resume => {
+                                Resume => {
                                     *self.state.status.lock() = EmuStatus::Running
                                 },
-                                EmuMsgIn::LoadRom => return, // this instance should be dropped and a new instance should replace it
-                                EmuMsgIn::Step(steps) => {
+                                LoadRom => return, // this instance should be dropped and a new instance should replace it
+                                Step(steps) => {
                                     self.steps_remaining = steps;
                                     *self.state.status.lock() = EmuStatus::Stepping;
                                 },
-                                EmuMsgIn::SetBreakpoint(breakpoint) => {
+                                SetBreakpoint(breakpoint) => {
                                     // self.breakpoints.set(breakpoint);
                                     emu.cpu.breakpoint_controls.set(breakpoint.into());
                                 },
-                                EmuMsgIn::UnsetBreakpoint(breakpoint) => {
+                                UnsetBreakpoint(breakpoint) => {
                                     // self.breakpoints.unset(breakpoint);
                                     emu.cpu.breakpoint_controls.unset(breakpoint.into());
                                 },
-                                EmuMsgIn::FrameLimit => {
+                                FrameLimit => {
                                     if self.state.status.lock().clone() == EmuStatus::Running {
                                         *self.state.status.lock() = EmuStatus::FrameLimited;
                                     }
                                 },
-                                EmuMsgIn::FrameUnlimit => {
+                                FrameUnlimit => {
                                     if self.state.status.lock().clone() == EmuStatus::FrameLimited {
                                         *self.state.status.lock() = EmuStatus::Running;
                                     }
+                                },
+                                ButtonPressed(button) => {
+                                    *emu.cpu.host_input.get_mut(button) = true;
+                                },
+                                ButtonReleased(button) => {
+                                    *emu.cpu.host_input.get_mut(button) = false;
                                 }
                                 _ => {}
                             }

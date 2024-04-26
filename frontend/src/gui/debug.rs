@@ -1,4 +1,4 @@
-use egui::{epaint::text::Row, load::SizedTexture, ColorImage, Context, TextureHandle, TextureOptions};
+use egui::{epaint::text::Row, load::SizedTexture, ColorImage, Context, RichText, TextureHandle, TextureOptions};
 use tokio::sync::mpsc;
 
 use crate::{comms::EmuMsgIn, runner::Breakpoint, state::DebugState};
@@ -89,6 +89,7 @@ pub fn show(ctx: &Context, state: &mut DebugState, sender: &mpsc::UnboundedSende
             ui.vertical(|ui| {
                 ui.strong("IO Registers");
                 show_reg_bin(ui, "LCDC", state.emu_state.as_ref().map(|s| s.io_regs.lcdc).unwrap_or(0));
+                show_reg_bin(ui, "JOYP", state.emu_state.as_ref().map(|s| s.io_regs.joyp).unwrap_or(0));
             });
         });
     });
@@ -104,11 +105,11 @@ pub fn show(ctx: &Context, state: &mut DebugState, sender: &mpsc::UnboundedSende
 
                     ui.separator();
                     ui.horizontal(|ui| {
-                        ui.strong(format!("${y:02X}"));
+                        ui.label(RichText::new(format!("${y:04X}")).strong().monospace());
 
                         for x in 0..16 {
                             let current = memory[y as usize + x as usize];
-                            ui.label(format!("{current:02X}"));
+                            ui.monospace(format!("{current:02X}"));
                         }
                     });
                 }

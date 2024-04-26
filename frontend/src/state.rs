@@ -61,6 +61,7 @@ impl EmuState {
 pub struct PerfState {
     pub open: bool,
     pub last_second: Option<Instant>,
+    pub last_frame: Instant,
     pub fps_history: VecDeque<usize>,
     pub min_fps: usize,
     pub max_fps: usize,
@@ -72,6 +73,7 @@ impl Default for PerfState {
         Self {
             open: false,
             last_second: None,
+            last_frame: Instant::now(),
             fps_history: VecDeque::with_capacity(crate::gui::perf::MAX_FPS_HISTORY),
             min_fps: usize::MAX,
             max_fps: 0,
