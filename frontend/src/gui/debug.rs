@@ -90,6 +90,8 @@ pub fn show(ctx: &Context, state: &mut DebugState, sender: &mpsc::UnboundedSende
                 ui.strong("IO Registers");
                 show_reg_bin(ui, "LCDC", state.emu_state.as_ref().map(|s| s.io_regs.lcdc).unwrap_or(0));
                 show_reg_bin(ui, "JOYP", state.emu_state.as_ref().map(|s| s.io_regs.joyp).unwrap_or(0));
+                show_reg_dec(ui, "SCY", state.emu_state.as_ref().map(|s| s.io_regs.scx).unwrap_or(0));
+                show_reg_dec(ui, "SCX", state.emu_state.as_ref().map(|s| s.io_regs.scy).unwrap_or(0));
             });
         });
     });
@@ -116,6 +118,10 @@ pub fn show(ctx: &Context, state: &mut DebugState, sender: &mpsc::UnboundedSende
             }
         });
     });
+}
+
+fn show_reg_dec(ui: &mut egui::Ui, name: &str, value: u8) {
+    show_reg(ui, name, &value.to_string())
 }
 
 fn show_reg_hex(ui: &mut egui::Ui, name: &str, value: u8) {
