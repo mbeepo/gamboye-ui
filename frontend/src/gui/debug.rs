@@ -92,6 +92,9 @@ pub fn show(ctx: &Context, state: &mut DebugState, sender: &mpsc::UnboundedSende
                 show_reg_bin(ui, "JOYP", state.emu_state.as_ref().map(|s| s.io_regs.joyp).unwrap_or(0));
                 show_reg_dec(ui, "SCY", state.emu_state.as_ref().map(|s| s.io_regs.scx).unwrap_or(0));
                 show_reg_dec(ui, "SCX", state.emu_state.as_ref().map(|s| s.io_regs.scy).unwrap_or(0));
+                show_reg_bin(ui, "STAT", state.emu_state.as_ref().map(|s| s.io_regs.stat).unwrap_or(0));
+                show_reg_dec(ui, "LYC", state.emu_state.as_ref().map(|s| s.io_regs.lyc).unwrap_or(0));
+                show_reg_dec(ui, "LY", state.emu_state.as_ref().map(|s| s.io_regs.ly).unwrap_or(0));
             });
         });
     });
