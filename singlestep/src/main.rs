@@ -1,4 +1,4 @@
-use std::{env::args, fs::{read_dir, DirEntry, File}, io::{stdout, Read, Write}, path::{Path, PathBuf}};
+use std::{env::args, fs::{read, read_dir, DirEntry, File}, io::{stdout, Read, Write}, path::{Path, PathBuf}};
 
 use gbc::{CpuError, CpuStatus, Gbc, Mmu};
 use serde::{de::{self, Visitor}, Deserialize};
@@ -81,15 +81,23 @@ impl<'de> Deserialize<'de> for MemoryMode {
 
 fn main() {
     let mut sys = Gbc::new(gbc::MbcSelector::NoMbc, false, true);
-    let files = read_dir("sm83/v1").unwrap();
     let files: Vec<DirEntry> = if let Some(instruction) = args().nth(1) {
-        files.skip_while(|e| e.as_ref().ok().is_some_and(|f| !f.path().ends_with(format!("{instruction}.json")))).map(|e| e.unwrap()).collect()
-    } else { files.map(|e| e.unwrap()).collect() };
+        let mut path: PathBuf = [".", "sm83", "v1", &instruction].iter().collect();
+        path.set_extension("json");
+        let buf = read(path).unwrap();
+
+        run_tests(&mut sys, buf).unwrap();
+        return;
+    } else { 
+        let files = read_dir("sm83/v1").unwrap();
+        files.map(|e| e.unwrap()).collect() 
+    };
 
     let mut failures: Vec<(String, String)> = Vec::with_capacity(8);
 
     for entry in files {
-        if let Err(err) = run_tests(&mut sys, entry.path()) {
+        let buf = read(entry.path()).unwrap();
+        if let Err(err) = run_tests(&mut sys, buf) {
             failures.push(err);
         }
     }
@@ -99,10 +107,7 @@ fn main() {
     }
 }
 
-fn run_tests(sys: &mut Gbc, path: PathBuf) -> Result<(), (String, String)> {
-    let mut buf: Vec<u8> = Vec::with_capacity(300_000);
-
-    File::open(path).unwrap().read_to_end(&mut buf).unwrap();
+fn run_tests(sys: &mut Gbc, buf: Vec<u8>) -> Result<(), (String, String)> {
     let tests: Vec<Test> = serde_json::from_slice(&buf).unwrap();
 
     println!("Test {}", tests[0].name);

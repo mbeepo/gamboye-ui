@@ -83,6 +83,7 @@ pub fn show(ctx: &Context, state: &mut DebugState, sender: &mpsc::UnboundedSende
                 show_reg_hex(ui, "B", state.emu_state.as_ref().map(|s| s.regs.b).unwrap_or(0));
                 show_reg_hex(ui, "C", state.emu_state.as_ref().map(|s| s.regs.c).unwrap_or(0));
                 show_reg_hex(ui, "D", state.emu_state.as_ref().map(|s| s.regs.d).unwrap_or(0));
+                show_reg_hex(ui, "E", state.emu_state.as_ref().map(|s| s.regs.e).unwrap_or(0));
                 show_reg_hex(ui, "H", state.emu_state.as_ref().map(|s| s.regs.h).unwrap_or(0));
                 show_reg_hex(ui, "L", state.emu_state.as_ref().map(|s| s.regs.l).unwrap_or(0));
             });
