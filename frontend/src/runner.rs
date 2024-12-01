@@ -214,16 +214,16 @@ impl Emu {
                         Err(mpsc::error::TryRecvError::Disconnected) => return,
                     }
 
-                    let status = self.state.status.lock().clone();
+                    let status = *self.state.status.lock();
 
                     match status {
                         EmuStatus::Running => {
                             let cpu_status = self.step(&mut emu);
 
                             match cpu_status {
-                                Ok(CpuStatus::Break(instruction, _)) => {
+                                Ok(CpuStatus::Break(_, _)) => {
                                     *self.state.status.lock() = EmuStatus::Break;
-                                    self.dump_state(&emu, instruction).unwrap();
+                                    self.dump_state(&emu).unwrap();
 
                                     println!("Breakpoint reached");
                                 },
@@ -260,31 +260,46 @@ impl Emu {
     fn step(&mut self, emu: &mut Gbc) -> Result<CpuStatus, gbc::CpuError> {
         let (cpu_status, ppu_status) = emu.step();
 
+
         match ppu_status {
             PpuStatus::EnterVBlank => {
                 *self.state.fb.lock() = emu.cpu.ppu.fb.clone();
                 emu.cpu.ppu.debug_show(&emu.cpu.memory, [16, 24], &mut *self.state.vram.lock());
                 self.state.fb_pending.store(true, Ordering::Relaxed);
                 self.egui_ctx.request_repaint();
-
                 match cpu_status {
-                    Ok(CpuStatus::Run(instruction)) => self.dump_state(emu, instruction).unwrap(),
+                    Ok(CpuStatus::Run(_)) => self.dump_state(emu).unwrap(),
                     _ => {}
                 }
             },
             _ => {}
         }
 
+        match *self.state.status.lock() {
+            EmuStatus::Break
+            | EmuStatus::Stepping
+            | EmuStatus::Stopped => self.dump_state(emu).unwrap(),
+            _ => {}
+        }
+        
         cpu_status
     }
 
-    fn dump_state(&self, emu: &Gbc, instruction: gbc::Instruction) -> Result<(), mpsc::error::SendError<EmuMsgOut>> {
+    fn dump_state(&self, emu: &Gbc) -> Result<(), mpsc::error::SendError<EmuMsgOut>> {
         let regs = emu.cpu.regs;
         let io_regs = emu.cpu.dump_io_regs();
         let memory = emu.cpu.memory.load_block(0, u16::MAX);
+        let instruction_byte = emu.cpu.memory.load(emu.cpu.regs.pc).unwrap_or(0);
+        let (instruction_byte, prefixed) = if instruction_byte == 0xCB {
+            (emu.cpu.memory.load(emu.cpu.regs.pc + 1).unwrap_or(0), true)
+        } else {
+            (instruction_byte, false)
+        };
+
+        let next_instruction = gbc::Instruction::from_byte(prefixed, instruction_byte).unwrap_or(gbc::Instruction::NOP);
 
         let state = StateDump {
-            instruction,
+            next_instruction,
             regs,
             io_regs,
             memory,

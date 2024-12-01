@@ -64,8 +64,8 @@ pub fn show(ctx: &Context, state: &mut DebugState, sender: &mpsc::UnboundedSende
                 });
             });
 
-            ui.strong("Last Instruction");
-            ui.label(format!("{:?}", state.emu_state.as_ref().map(|s| s.instruction).unwrap_or(gbc::Instruction::NOP)));
+            ui.strong("Next Instruction");
+            ui.label(format!("{:?}", state.emu_state.as_ref().map(|s| s.next_instruction).unwrap_or(gbc::Instruction::NOP)));
 
             ui.strong("Emu Status");
             ui.label(format!("{}", state.emu_status));
@@ -78,6 +78,7 @@ pub fn show(ctx: &Context, state: &mut DebugState, sender: &mpsc::UnboundedSende
             ui.vertical(|ui| {
                 ui.strong("Registers");
                 show_reg_hex_word(ui, "PC", state.emu_state.as_ref().map(|s| s.regs.pc).unwrap_or(0));
+                show_reg_hex_word(ui, "SP", state.emu_state.as_ref().map(|s| s.regs.sp).unwrap_or(0));
                 show_reg_hex(ui, "A", state.emu_state.as_ref().map(|s| s.regs.a).unwrap_or(0));
                 show_reg_hex(ui, "B", state.emu_state.as_ref().map(|s| s.regs.b).unwrap_or(0));
                 show_reg_hex(ui, "C", state.emu_state.as_ref().map(|s| s.regs.c).unwrap_or(0));
@@ -116,6 +117,8 @@ pub fn show(ctx: &Context, state: &mut DebugState, sender: &mpsc::UnboundedSende
                             let current = memory[y as usize + x as usize];
                             ui.monospace(format!("{current:02X}"));
                         }
+                        
+                        ui.add_space(2.0);
                     });
                 }
             }

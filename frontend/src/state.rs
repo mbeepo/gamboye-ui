@@ -94,7 +94,7 @@ pub struct DebugState {
 
 #[derive(Clone, Debug)]
 pub struct StateDump {
-    pub instruction: gbc::Instruction,
+    pub next_instruction: gbc::Instruction,
     pub regs: gbc::Registers,
     pub io_regs: gbc::IoRegs,
     pub memory: Vec<u8>,
