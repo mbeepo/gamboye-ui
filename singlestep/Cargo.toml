@@ -1,0 +1,11 @@
+[package]
+name = "singlestep"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+gbc = { path = "../gbc" }
+serde = { version = "1.0.215", features = ["derive"] }
+serde_json = "1.0.133"

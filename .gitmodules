@@ -2,3 +2,6 @@
 	path = gbc
 	url = git@github.com:Egggggg/gamboye.git
     
+[submodule "singlestep/sm83"]
+	path = singlestep/sm83
+	url = git@github.com:SingleStepTests/sm83.git
