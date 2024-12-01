@@ -146,6 +146,7 @@ impl Emu {
         let mbc = gbc::get_mbc(rom);
         let mut emu = Gbc::new(mbc, false, true);
         emu.load_rom(rom);
+        emu.cpu.breakpoint_controls.set(CpuEvent::LdBb);
         self.inner = Some(emu);
     }
 
@@ -155,9 +156,17 @@ impl Emu {
 
             tokio::spawn(async move {
                 *self.state.status.lock() = EmuStatus::Running;
+                let mut buf: Option<EmuMsgIn> = None;
 
                 loop {
-                    match self.receiver.try_recv() {
+                    let msg = if let Some(msg) = buf {
+                        buf = None;
+                        Ok(msg)
+                    } else {
+                        self.receiver.try_recv()
+                    };
+
+                    match msg {
                         Ok(msg) => {
                             use EmuMsgIn::*;
 
@@ -232,7 +241,11 @@ impl Emu {
                             if self.steps_remaining == 0 {
                                 *self.state.status.lock() = EmuStatus::Stopped;
                             }
-                        }
+                        },
+                        EmuStatus::Break
+                        | EmuStatus::Stopped => {
+                            buf = self.receiver.recv().await;
+                        },
                         _ => {}
                     }
                 }
