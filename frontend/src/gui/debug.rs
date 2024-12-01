@@ -1,10 +1,10 @@
-use egui::{epaint::text::Row, load::SizedTexture, ColorImage, Context, RichText, TextureHandle, TextureOptions};
+use egui::{load::SizedTexture, ColorImage, Context, RichText, TextureHandle, TextureOptions};
 use tokio::sync::mpsc;
 
 use crate::{comms::EmuMsgIn, runner::Breakpoint, state::DebugState};
 
 pub fn show(ctx: &Context, state: &mut DebugState, sender: &mpsc::UnboundedSender<EmuMsgIn>) {
-    egui::SidePanel::left("debug").show(ctx, |ui| {
+    egui::SidePanel::left("debug").resizable(false).show(ctx, |ui| {
         egui::ScrollArea::vertical().show(ui, |ui| {
             let text = if state.stopped {
                 "Resume"
@@ -99,7 +99,7 @@ pub fn show(ctx: &Context, state: &mut DebugState, sender: &mpsc::UnboundedSende
         });
     });
 
-    egui::SidePanel::right("debug-memory").show(ctx, |ui| {
+    egui::SidePanel::right("debug-memory").resizable(false).show(ctx, |ui| {
         let text_style = egui::TextStyle::Body;
         let row_height = ui.text_style_height(&text_style);
 

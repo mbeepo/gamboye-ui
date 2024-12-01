@@ -233,7 +233,7 @@ impl Emu {
                         EmuStatus::Stepping => {
                             let cpu_status = self.step(&mut emu);
                             match cpu_status {
-                                Ok(CpuStatus::Run(instruction)) => self.dump_state(&emu, instruction).unwrap(),
+                                Ok(CpuStatus::Run(_)) => {},
                                 _ => {}
                             }
 
