@@ -146,7 +146,6 @@ impl Emu {
         let mbc = gbc::get_mbc(rom);
         let mut emu = Gbc::new(mbc, false, true);
         emu.load_rom(rom);
-        emu.cpu.breakpoint_controls.set(CpuEvent::LdBb);
         self.inner = Some(emu);
     }
 
