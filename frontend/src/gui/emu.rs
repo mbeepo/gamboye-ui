@@ -21,10 +21,12 @@ pub fn show(ctx: &Context, state: &mut TopState) -> InnerResponse<()> {
     for button in BUTTONS {
         if ctx.input(|i| i.key_pressed(button.key)) {
             if let Some(ref sender) = state.emu.sender {
+                println!("Button pressed");
                 sender.send(comms::EmuMsgIn::ButtonPressed(button.button)).unwrap();
             }
         } else if ctx.input(|i| i.key_released(button.key)) {
             if let Some(ref sender) = state.emu.sender {
+                println!("Button released");
                 sender.send(comms::EmuMsgIn::ButtonReleased(button.button)).unwrap();
             }
         }

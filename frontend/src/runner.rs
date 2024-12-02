@@ -1,7 +1,7 @@
 use std::{fmt::Display, sync::{atomic::Ordering, Arc}};
 
 use egui::Context;
-use gbc::{CpuReg, CpuStatus, Gbc, PpuStatus};
+use gbc::{CpuEvent, CpuReg, CpuStatus, Gbc, PpuStatus};
 use tokio::sync::mpsc;
 
 use crate::{comms::{EmuMsgIn, EmuMsgOut}, state::{InnerEmuState, StateDump}};
@@ -161,7 +161,7 @@ impl Emu {
             tokio::spawn(async move {
                 *self.state.status.lock() = EmuStatus::Running;
                 // *self.state.status.lock() = EmuStatus::Break;
-                // emu.cpu.breakpoint_controls.set(CpuEvent::LdBb);
+                // emu.cpu.breakpoint_controls.set(CpuEvent::Pc(0x29d5));
                 let mut buf: Option<EmuMsgIn> = None;
 
                 loop {
@@ -263,18 +263,16 @@ impl Emu {
     }
 
     fn step(&mut self, emu: &mut Gbc) -> Result<CpuStatus, gbc::CpuError> {
-        let (cpu_status, ppu_status) = emu.step();
+        let (cpu_status, draw_ready) = emu.step();
 
-        match ppu_status {
-            PpuStatus::EnterVBlank => {
-                println!("VBlank");
-                *self.state.fb.lock() = emu.cpu.ppu.fb.clone();
-                emu.cpu.ppu.debug_show(&emu.cpu.memory, [16, 24], &mut *self.state.vram.lock());
-                self.state.fb_pending.store(true, Ordering::Relaxed);
-                self.egui_ctx.request_repaint();
-                self.dump_state(emu).unwrap();
-            },
-            _ => {}
+        if draw_ready {
+            println!("Drawing");
+            emu.set_drawn();
+            *self.state.fb.lock() = emu.cpu.ppu.fb.clone();
+            emu.cpu.ppu.debug_show(&emu.cpu.memory, [16, 24], &mut *self.state.vram.lock());
+            self.state.fb_pending.store(true, Ordering::Relaxed);
+            self.egui_ctx.request_repaint();
+            self.dump_state(emu).unwrap();
         }
 
         // if let Some(serial) = emu.read_serial() {
