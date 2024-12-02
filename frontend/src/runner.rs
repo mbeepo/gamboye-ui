@@ -266,7 +266,6 @@ impl Emu {
         let (cpu_status, draw_ready) = emu.step();
 
         if draw_ready {
-            println!("Drawing");
             emu.set_drawn();
             *self.state.fb.lock() = emu.cpu.ppu.fb.clone();
             emu.cpu.ppu.debug_show(&emu.cpu.memory, [16, 24], &mut *self.state.vram.lock());
