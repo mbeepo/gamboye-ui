@@ -49,6 +49,7 @@ pub enum Breakpoint {
     HalfCarry,
     Carry,
     MemoryWrite(u16),
+    Pc(u16),
 }
 
 impl From<Breakpoint> for gbc::CpuEvent {
@@ -64,7 +65,8 @@ impl From<Breakpoint> for gbc::CpuEvent {
             Breakpoint::Subtract => Self::Flag(gbc::CpuFlag::Subtract),
             Breakpoint::HalfCarry => Self::Flag(gbc::CpuFlag::HalfCarry),
             Breakpoint::Carry => Self::Flag(gbc::CpuFlag::Carry),
-            Breakpoint::MemoryWrite(addr) => Self::MemoryWrite(addr)
+            Breakpoint::MemoryWrite(addr) => Self::MemoryWrite(addr),
+            Breakpoint::Pc(addr) => Self::Pc(addr),
         }
     }
 }
@@ -81,7 +83,10 @@ pub struct Breakpoints {
     pub d_reg: bool,
     pub h_reg: bool,
     pub l_reg: bool,
-    pub mem_write: String,
+    // String because straight from input
+    pub mem_write: (String, bool),
+    pub pc: (String, bool),
+    
 }
 
 // impl Breakpoints {
@@ -154,7 +159,8 @@ impl Emu {
             self.inner = None;
 
             tokio::spawn(async move {
-                *self.state.status.lock() = EmuStatus::Running;
+                // *self.state.status.lock() = EmuStatus::Running;
+                *self.state.status.lock() = EmuStatus::Break;
                 let mut buf: Option<EmuMsgIn> = None;
 
                 loop {
@@ -266,11 +272,12 @@ impl Emu {
                 emu.cpu.ppu.debug_show(&emu.cpu.memory, [16, 24], &mut *self.state.vram.lock());
                 self.state.fb_pending.store(true, Ordering::Relaxed);
                 self.egui_ctx.request_repaint();
-                match cpu_status {
-                    Ok(CpuStatus::Run(_)) => self.dump_state(emu).unwrap(),
-                    _ => {}
-                }
             },
+            _ => {}
+        }
+
+        match cpu_status {
+            Ok(CpuStatus::Break(instruction, event)) => { dbg!(instruction, event); }
             _ => {}
         }
 

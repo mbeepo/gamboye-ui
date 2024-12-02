@@ -46,20 +46,39 @@ pub fn show(ctx: &Context, state: &mut DebugState, sender: &mpsc::UnboundedSende
                 });
                 
                 ui.separator();
-                ui.strong("Memory Set");
+                ui.label(RichText::new("Memory Set").strong().monospace());
                 ui.horizontal(|ui| {
-                    ui.text_edit_singleline(&mut state.breakpoints.mem_write);
-                    
-                    let mut checked = false;
-                    if ui.checkbox(&mut checked, "Set").changed() {
-                        if let Ok(addr) = text.parse() {
+                    if ui.checkbox(&mut state.breakpoints.mem_write.1, "Set").changed() {
+                        if let Ok(addr) = u16::from_str_radix(&state.breakpoints.mem_write.0, 16) {
                             let breakpoint = Breakpoint::MemoryWrite(addr);
-                            if checked {
+                            if state.breakpoints.mem_write.1 {
                                 sender.send(EmuMsgIn::SetBreakpoint(breakpoint)).unwrap();
                             } else {
                                 sender.send(EmuMsgIn::UnsetBreakpoint(breakpoint)).unwrap();
                             }
                         }
+                    }
+
+                    ui.text_edit_singleline(&mut state.breakpoints.mem_write.0).changed();
+                });
+                
+                ui.separator();
+                ui.label(RichText::new("PC").strong().monospace());
+                ui.horizontal(|ui| {
+                    if ui.checkbox(&mut state.breakpoints.pc.1, "Set").changed() {
+                        if let Ok(addr) = u16::from_str_radix(&state.breakpoints.pc.0, 16) {
+                            let breakpoint = Breakpoint::Pc(addr);
+                            if state.breakpoints.pc.1 {
+                                sender.send(EmuMsgIn::SetBreakpoint(breakpoint)).unwrap();
+                            } else {
+                                state.breakpoints.mem_write.0.clear();
+                                sender.send(EmuMsgIn::UnsetBreakpoint(breakpoint)).unwrap();
+                            }
+                        }
+                    }
+
+                    if ui.text_edit_singleline(&mut state.breakpoints.pc.0).changed() {
+                        state.breakpoints.pc.1 = false;
                     }
                 });
             });
@@ -101,30 +120,30 @@ pub fn show(ctx: &Context, state: &mut DebugState, sender: &mpsc::UnboundedSende
         });
     });
 
-    egui::SidePanel::right("debug-memory").resizable(false).show(ctx, |ui| {
-        let text_style = egui::TextStyle::Body;
-        let row_height = ui.text_style_height(&text_style);
+    // egui::SidePanel::right("debug-memory").resizable(false).show(ctx, |ui| {
+    //     let text_style = egui::TextStyle::Body;
+    //     let row_height = ui.text_style_height(&text_style);
 
-        egui::ScrollArea::vertical().show_rows(ui, row_height, (u16::MAX / 16).into(), |ui, row_range| {
-            if let Some(memory) = state.emu_state.as_ref().map(|s| &s.memory) {
-                for row in row_range {
-                    let y = row * 16;
+    //     egui::ScrollArea::vertical().show_rows(ui, row_height, (u16::MAX / 16).into(), |ui, row_range| {
+    //         if let Some(memory) = state.emu_state.as_ref().map(|s| &s.memory) {
+    //             for row in row_range {
+    //                 let y = row * 16;
 
-                    ui.separator();
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new(format!("${y:04X}")).strong().monospace());
+    //                 ui.separator();
+    //                 ui.horizontal(|ui| {
+    //                     ui.label(RichText::new(format!("${y:04X}")).strong().monospace());
 
-                        for x in 0..16 {
-                            let current = memory[y as usize + x as usize];
-                            ui.monospace(format!("{current:02X}"));
-                        }
+    //                     for x in 0..16 {
+    //                         let current = memory[y as usize + x as usize];
+    //                         ui.monospace(format!("{current:02X}"));
+    //                     }
                         
-                        ui.add_space(2.0);
-                    });
-                }
-            }
-        });
-    });
+    //                     ui.add_space(2.0);
+    //                 });
+    //             }
+    //         }
+    //     });
+    // });
 }
 
 fn show_reg_dec(ui: &mut egui::Ui, name: &str, value: u8) {
