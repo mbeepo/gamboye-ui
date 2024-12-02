@@ -17,6 +17,8 @@ pub const WINDOW_SIZE: Vec2 = vec2(WIDTH, HEIGHT);
 
 #[tokio::main]
 async fn main() -> Result<(), eframe::Error> {
+    println!("Starting");
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_title("Beef Wellington").with_inner_size(WINDOW_SIZE * 2.0).with_min_inner_size(WINDOW_SIZE),
         vsync: false,

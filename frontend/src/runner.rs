@@ -1,7 +1,7 @@
 use std::{fmt::Display, sync::{atomic::Ordering, Arc}};
 
 use egui::Context;
-use gbc::{CpuEvent, CpuReg, CpuStatus, Gbc, PpuStatus};
+use gbc::{CpuReg, CpuStatus, Gbc, PpuStatus};
 use tokio::sync::mpsc;
 
 use crate::{comms::{EmuMsgIn, EmuMsgOut}, state::{InnerEmuState, StateDump}};
@@ -159,8 +159,9 @@ impl Emu {
             self.inner = None;
 
             tokio::spawn(async move {
-                // *self.state.status.lock() = EmuStatus::Running;
-                *self.state.status.lock() = EmuStatus::Break;
+                *self.state.status.lock() = EmuStatus::Running;
+                // *self.state.status.lock() = EmuStatus::Break;
+                // emu.cpu.breakpoint_controls.set(CpuEvent::LdBb);
                 let mut buf: Option<EmuMsgIn> = None;
 
                 loop {
@@ -207,12 +208,11 @@ impl Emu {
                                     }
                                 },
                                 ButtonPressed(button) => {
-                                    *emu.cpu.host_input.get_mut(button) = true;
+                                    emu.press_button(button);
                                 },
                                 ButtonReleased(button) => {
-                                    *emu.cpu.host_input.get_mut(button) = false;
+                                    emu.release_button(button);
                                 }
-                                _ => {}
                             }
                         },
                         Err(mpsc::error::TryRecvError::Empty) => {},
@@ -265,22 +265,22 @@ impl Emu {
     fn step(&mut self, emu: &mut Gbc) -> Result<CpuStatus, gbc::CpuError> {
         let (cpu_status, ppu_status) = emu.step();
 
-
         match ppu_status {
             PpuStatus::EnterVBlank => {
+                println!("VBlank");
                 *self.state.fb.lock() = emu.cpu.ppu.fb.clone();
                 emu.cpu.ppu.debug_show(&emu.cpu.memory, [16, 24], &mut *self.state.vram.lock());
                 self.state.fb_pending.store(true, Ordering::Relaxed);
                 self.egui_ctx.request_repaint();
+                self.dump_state(emu).unwrap();
             },
             _ => {}
         }
 
-        match cpu_status {
-            Ok(CpuStatus::Break(instruction, event)) => { dbg!(instruction, event); }
-            _ => {}
-        }
-
+        // if let Some(serial) = emu.read_serial() {
+        //     print!("{}", serial as char);
+        // }
+        
         match *self.state.status.lock() {
             EmuStatus::Break
             | EmuStatus::Stepping

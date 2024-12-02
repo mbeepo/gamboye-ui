@@ -1,4 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["frontend", "gbc", "singlestep"]
+members = ["frontend", "gbc", "mooneye", "singlestep"]
 default-members = ["frontend"]
+
+[profile.release]
+debug = 1

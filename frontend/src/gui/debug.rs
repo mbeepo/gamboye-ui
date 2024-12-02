@@ -98,52 +98,52 @@ pub fn show(ctx: &Context, state: &mut DebugState, sender: &mpsc::UnboundedSende
                 ui.strong("Registers");
                 show_reg_hex_word(ui, "PC", state.emu_state.as_ref().map(|s| s.regs.pc).unwrap_or(0));
                 show_reg_hex_word(ui, "SP", state.emu_state.as_ref().map(|s| s.regs.sp).unwrap_or(0));
-                show_reg_hex(ui, "A", state.emu_state.as_ref().map(|s| s.regs.a).unwrap_or(0));
-                show_reg_hex(ui, "B", state.emu_state.as_ref().map(|s| s.regs.b).unwrap_or(0));
-                show_reg_hex(ui, "C", state.emu_state.as_ref().map(|s| s.regs.c).unwrap_or(0));
-                show_reg_hex(ui, "D", state.emu_state.as_ref().map(|s| s.regs.d).unwrap_or(0));
-                show_reg_hex(ui, "E", state.emu_state.as_ref().map(|s| s.regs.e).unwrap_or(0));
-                show_reg_hex(ui, "H", state.emu_state.as_ref().map(|s| s.regs.h).unwrap_or(0));
-                show_reg_hex(ui, "L", state.emu_state.as_ref().map(|s| s.regs.l).unwrap_or(0));
+                show_reg_hex(ui, "A ", state.emu_state.as_ref().map(|s| s.regs.a).unwrap_or(0));
+                show_reg_hex(ui, "B ", state.emu_state.as_ref().map(|s| s.regs.b).unwrap_or(0));
+                show_reg_hex(ui, "C ", state.emu_state.as_ref().map(|s| s.regs.c).unwrap_or(0));
+                show_reg_hex(ui, "D ", state.emu_state.as_ref().map(|s| s.regs.d).unwrap_or(0));
+                show_reg_hex(ui, "E ", state.emu_state.as_ref().map(|s| s.regs.e).unwrap_or(0));
+                show_reg_hex(ui, "H ", state.emu_state.as_ref().map(|s| s.regs.h).unwrap_or(0));
+                show_reg_hex(ui, "L ", state.emu_state.as_ref().map(|s| s.regs.l).unwrap_or(0));
             });
 
             ui.vertical(|ui| {
                 ui.strong("IO Registers");
                 show_reg_bin(ui, "LCDC", state.emu_state.as_ref().map(|s| s.io_regs.lcdc).unwrap_or(0));
                 show_reg_bin(ui, "JOYP", state.emu_state.as_ref().map(|s| s.io_regs.joyp).unwrap_or(0));
-                show_reg_dec(ui, "SCY", state.emu_state.as_ref().map(|s| s.io_regs.scx).unwrap_or(0));
-                show_reg_dec(ui, "SCX", state.emu_state.as_ref().map(|s| s.io_regs.scy).unwrap_or(0));
+                show_reg_dec(ui, "SCY ", state.emu_state.as_ref().map(|s| s.io_regs.scx).unwrap_or(0));
+                show_reg_dec(ui, "SCX ", state.emu_state.as_ref().map(|s| s.io_regs.scy).unwrap_or(0));
                 show_reg_bin(ui, "STAT", state.emu_state.as_ref().map(|s| s.io_regs.stat).unwrap_or(0));
-                show_reg_dec(ui, "LYC", state.emu_state.as_ref().map(|s| s.io_regs.lyc).unwrap_or(0));
-                show_reg_dec(ui, "LY", state.emu_state.as_ref().map(|s| s.io_regs.ly).unwrap_or(0));
+                show_reg_dec(ui, "LYC ", state.emu_state.as_ref().map(|s| s.io_regs.lyc).unwrap_or(0));
+                show_reg_dec(ui, "LY  ", state.emu_state.as_ref().map(|s| s.io_regs.ly).unwrap_or(0));
             });
         });
     });
 
-    // egui::SidePanel::right("debug-memory").resizable(false).show(ctx, |ui| {
-    //     let text_style = egui::TextStyle::Body;
-    //     let row_height = ui.text_style_height(&text_style);
+    egui::SidePanel::right("debug-memory").resizable(false).show(ctx, |ui| {
+        let text_style = egui::TextStyle::Body;
+        let row_height = ui.text_style_height(&text_style);
 
-    //     egui::ScrollArea::vertical().show_rows(ui, row_height, (u16::MAX / 16).into(), |ui, row_range| {
-    //         if let Some(memory) = state.emu_state.as_ref().map(|s| &s.memory) {
-    //             for row in row_range {
-    //                 let y = row * 16;
+        egui::ScrollArea::vertical().show_rows(ui, row_height, (u16::MAX / 16).into(), |ui, row_range| {
+            if let Some(memory) = state.emu_state.as_ref().map(|s| &s.memory) {
+                for row in row_range {
+                    let y = row * 16;
 
-    //                 ui.separator();
-    //                 ui.horizontal(|ui| {
-    //                     ui.label(RichText::new(format!("${y:04X}")).strong().monospace());
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(format!("${y:04X}")).strong().monospace());
 
-    //                     for x in 0..16 {
-    //                         let current = memory[y as usize + x as usize];
-    //                         ui.monospace(format!("{current:02X}"));
-    //                     }
+                        for x in 0..16 {
+                            let current = memory[y as usize + x as usize];
+                            ui.monospace(format!("{current:02X}"));
+                        }
                         
-    //                     ui.add_space(2.0);
-    //                 });
-    //             }
-    //         }
-    //     });
-    // });
+                        ui.add_space(2.0);
+                    });
+                }
+            }
+        });
+    });
 }
 
 fn show_reg_dec(ui: &mut egui::Ui, name: &str, value: u8) {
@@ -165,9 +165,9 @@ fn show_reg_bin(ui: &mut egui::Ui, name: &str, value: u8) {
 fn show_reg(ui: &mut egui::Ui, name: &str, text: &str) {
     ui.separator();
     ui.horizontal(|ui| {
-        ui.label(name);
+        ui.monospace(name);
         ui.separator();
-        ui.label(text);
+        ui.monospace(text);
     });
 }
 
