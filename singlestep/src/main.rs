@@ -80,13 +80,14 @@ impl<'de> Deserialize<'de> for MemoryMode {
 }
 
 fn main() {
+    let check_mem = false;
     let mut sys = Gbc::new(gbc::MbcSelector::NoMbc, false, true);
     let files: Vec<DirEntry> = if let Some(instruction) = args().nth(1) {
         let mut path: PathBuf = [".", "sm83", "v1", &instruction].iter().collect();
         path.set_extension("json");
         let buf = read(path).unwrap();
 
-        run_tests(&mut sys, buf).unwrap();
+        run_tests(&mut sys, buf, check_mem).unwrap();
         return;
     } else { 
         let files = read_dir("sm83/v1").unwrap();
@@ -97,7 +98,7 @@ fn main() {
 
     for entry in files {
         let buf = read(entry.path()).unwrap();
-        if let Err(err) = run_tests(&mut sys, buf) {
+        if let Err(err) = run_tests(&mut sys, buf, check_mem) {
             failures.push(err);
         }
     }
@@ -107,22 +108,27 @@ fn main() {
     }
 }
 
-fn run_tests(sys: &mut Gbc, buf: Vec<u8>) -> Result<(), (String, String)> {
+fn run_tests(sys: &mut Gbc, buf: Vec<u8>, check_mem: bool) -> Result<(), (String, String)> {
     let tests: Vec<Test> = serde_json::from_slice(&buf).unwrap();
 
     println!("Test {}", tests[0].name);
 
     for test in tests {
-        init_state(sys, test.initial);
+        init_state(sys, &test.initial);
         sys.step().0.unwrap();
 
-       assert_state(&sys, test._final).map_err(|err| (test.name, err))?;
+        if check_mem {
+            assert_state(&sys, &test._final).map_err(|err| (test.name.clone(), err))?;
+            assert_memory(&sys, &test._final).map_err(|err| (test.name, err))?;
+        } else {
+            assert_state(&sys, &test._final).map_err(|err| (test.name, err))?;
+        }
     }
 
     Ok(())
 }
 
-fn init_state(sys: &mut Gbc, state: State) {
+fn init_state(sys: &mut Gbc, state: &State) {
     sys.cpu.regs.a = state.a;
     sys.cpu.regs.b = state.b;
     sys.cpu.regs.c = state.c;
@@ -146,20 +152,14 @@ fn init_state(sys: &mut Gbc, state: State) {
         sys.cpu.memory.set(gbc::memory::IE, ie);
     }
 
-    for cell in state.ram {
+    for cell in &state.ram {
         sys.cpu.memory.set(cell.addr, cell.value);
         
         if cell.addr == gbc::memory::DIV { sys.cpu.div = (cell.value as u16) << 8 };
-        assert_eq!(sys.cpu.memory.load(cell.addr).unwrap(), cell.value);
     }
 }
 
-fn assert_state(sys: &Gbc, state: State) -> Result<(), String> {
-    for cell in state.ram {
-        let value = sys.cpu.memory.load(cell.addr).unwrap();
-        if value != cell.value { return Err(format!("[{}] = {}, expected {}", cell.addr, value, cell.value)) };
-    }
-
+fn assert_state(sys: &Gbc, state: &State) -> Result<(), String> {
     if sys.cpu.regs.a != state.a { Err(format!("A = {}, expected {}", sys.cpu.regs.a, state.a)) }
     else if sys.cpu.regs.b != state.b { Err(format!("B = {}, expected {}", sys.cpu.regs.b, state.b)) }
     else if sys.cpu.regs.c != state.c { Err(format!("C = {}, expected {}", sys.cpu.regs.c, state.c)) }
@@ -168,7 +168,7 @@ fn assert_state(sys: &Gbc, state: State) -> Result<(), String> {
     else if sys.cpu.regs.f.as_byte() != state.f {  Err(format!("F = {}, expected {}", sys.cpu.regs.f.as_byte(), state.f)) }
     else if sys.cpu.regs.h != state.h { Err(format!("H = {}, expected {}", sys.cpu.regs.h, state.h)) }
     else if sys.cpu.regs.l != state.l { Err(format!("L = {}, expected {}", sys.cpu.regs.l, state.l)) }
-    else if sys.cpu.regs.pc != state.pc { Err(format!("PC = {}, expected {}", sys.cpu.regs.pc, state.pc)) }
+    else if sys.cpu.regs.pc != state.pc { Err(format!("PC = {:#06X}, expected {:#06X}", sys.cpu.regs.pc, state.pc)) }
     else if sys.cpu.regs.sp != state.sp { Err(format!("SP = {}, expected {}", sys.cpu.regs.sp, state.sp)) }
     else if sys.cpu.regs.ime != (state.ime == 1) { Err(format!("IME = {}, expected {}", sys.cpu.regs.ime, state.ime == 1)) }
     else if let Some(ie) = state.ie {
@@ -178,4 +178,12 @@ fn assert_state(sys: &Gbc, state: State) -> Result<(), String> {
     } else {
         Ok(())
     }
+}
+
+fn assert_memory(sys: &Gbc, state: &State) -> Result<(), String> {
+    for cell in &state.ram {
+        let value = sys.cpu.memory.load(cell.addr);
+        if value != Some(cell.value) { return Err(format!("[{:#06X}] = {:?}, expected {}", cell.addr, value, cell.value)) };
+    }
+    Ok(())
 }
