@@ -9,6 +9,7 @@ pub mod perf;
 pub mod debug;
 
 pub const BASE_DISPLAY_POS: Pos2 = pos2(0.0, 0.0);
+// const MAX_FRAMERATE: usize = usize::MAX;
 const MAX_FRAMERATE: usize = 60;
 
 const PERF_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::ALT, egui::Key::P);

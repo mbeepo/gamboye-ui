@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::{io::{stdout, Write}, time::{Duration, Instant}};
 
 use egui::Context;
 
@@ -66,23 +66,26 @@ pub fn record_frame(state: &mut super::TopState) {
 
 pub fn ratelimit(state: &mut super::TopState) {
     let now = Instant::now();
-    let duration = now.duration_since(state.perf.last_frame).as_micros();
+    let duration = now.duration_since(state.perf.last_frame);
     const MIN_FRAMETIME: u64 = 1_000_000 / crate::gui::MAX_FRAMERATE as u64;
 
     // too fast >:(
-    if duration < MIN_FRAMETIME as u128 {
+    if duration.as_micros() < MIN_FRAMETIME as u128 {
         if let Some(ref emu_channel) = state.emu.sender {
             let awaken = state.perf.last_frame + Duration::from_micros(MIN_FRAMETIME);
-            state.emu.wait_until = Some(awaken);
+            state.perf.last_frame = awaken;
+
             emu_channel.send(EmuMsgIn::FrameLimit).unwrap();
 
             let awaken_sender = emu_channel.clone();
             tokio::spawn(async move {
-                tokio::time::sleep_until(awaken.into()).await;
+                while Instant::now() < awaken {
+                    tokio::time::sleep_until((Instant::now() + Duration::from_micros(100)).into()).await;
+                }
                 awaken_sender.send(EmuMsgIn::FrameUnlimit).unwrap();
             });
         }
+    } else {
+        state.perf.last_frame = now;
     }
-    
-    state.perf.last_frame = Instant::now();
 }

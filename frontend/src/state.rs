@@ -28,7 +28,6 @@ impl Default for InnerEmuState {
 
 pub struct EmuState {
     pub atoms: Arc<InnerEmuState>,
-    pub wait_until: Option<Instant>,
     pub sender: Option<mpsc::UnboundedSender<EmuMsgIn>>,
     pub receiver: mpsc::UnboundedReceiver<EmuMsgOut>,
     pub display_mesh: Mesh,
@@ -46,7 +45,6 @@ impl EmuState {
 
         Self {
             atoms: Default::default(),
-            wait_until: None,
             sender: Some(sender),
             receiver,
             display_mesh,
