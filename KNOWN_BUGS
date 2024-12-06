@@ -1,2 +1,1 @@
-## Legend of Zelda: Link's Awakening
-- Bottom of display is incorrect, wrong tileset perhaps
+- Sprites with y < 16 dont show up
