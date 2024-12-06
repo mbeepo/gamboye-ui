@@ -159,10 +159,12 @@ impl Emu {
             self.inner = None;
 
             tokio::spawn(async move {
-                *self.state.status.lock() = EmuStatus::Running;
                 // *self.state.status.lock() = EmuStatus::Break;
                 // emu.cpu.breakpoint_controls.set(CpuEvent::LdBb);
                 let mut buf: Option<EmuMsgIn> = None;
+                let mut status = EmuStatus::Running;
+                let mut old_status;
+                *self.state.status.lock() = status;
 
                 loop {
                     let msg = if let Some(msg) = buf {
@@ -171,23 +173,25 @@ impl Emu {
                     } else {
                         self.receiver.try_recv()
                     };
+                    
+                    old_status = status;
 
                     match msg {
                         Ok(msg) => {
                             use EmuMsgIn::*;
-
+                            
                             match msg {
                                 Exit => return,
                                 Pause => {
-                                    *self.state.status.lock() = EmuStatus::Stopped
+                                    status = EmuStatus::Stopped
                                 },
                                 Resume => {
-                                    *self.state.status.lock() = EmuStatus::Running
+                                    status = EmuStatus::Running
                                 },
                                 LoadRom => return, // this instance should be dropped and a new instance should replace it
                                 Step(steps) => {
                                     self.steps_remaining = steps;
-                                    *self.state.status.lock() = EmuStatus::Stepping;
+                                    status = EmuStatus::Stepping;
                                 },
                                 SetBreakpoint(breakpoint) => {
                                     // self.breakpoints.set(breakpoint);
@@ -198,14 +202,10 @@ impl Emu {
                                     emu.cpu.breakpoint_controls.unset(breakpoint.into());
                                 },
                                 FrameLimit => {
-                                    if self.state.status.lock().clone() == EmuStatus::Running {
-                                        *self.state.status.lock() = EmuStatus::FrameLimited;
-                                    }
+                                    status = EmuStatus::FrameLimited;
                                 },
                                 FrameUnlimit => {
-                                    if self.state.status.lock().clone() == EmuStatus::FrameLimited {
-                                        *self.state.status.lock() = EmuStatus::Running;
-                                    }
+                                    status = EmuStatus::Running;
                                 },
                                 ButtonPressed(button) => {
                                     emu.press_button(button);
@@ -219,15 +219,13 @@ impl Emu {
                         Err(mpsc::error::TryRecvError::Disconnected) => return,
                     }
 
-                    let status = *self.state.status.lock();
-
                     match status {
                         EmuStatus::Running => {
                             let cpu_status = self.step(&mut emu);
 
                             match cpu_status {
                                 Ok(CpuStatus::Break(_, _)) => {
-                                    *self.state.status.lock() = EmuStatus::Break;
+                                    status = EmuStatus::Break;
                                     self.dump_state(&emu).unwrap();
 
                                     println!("Breakpoint reached");
@@ -244,7 +242,7 @@ impl Emu {
 
                             self.steps_remaining -= 1;
                             if self.steps_remaining == 0 {
-                                *self.state.status.lock() = EmuStatus::Stopped;
+                                status = EmuStatus::Stopped;
                             }
                         },
                         EmuStatus::Break
@@ -252,6 +250,10 @@ impl Emu {
                             buf = self.receiver.recv().await;
                         },
                         _ => {}
+                    }
+                    
+                    if status != old_status {
+                        *self.state.status.lock() = status;
                     }
                 }
             });
