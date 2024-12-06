@@ -1,7 +1,7 @@
 use std::{fmt::Display, sync::{atomic::Ordering, Arc}};
 
 use egui::Context;
-use gbc::{CpuEvent, CpuReg, CpuStatus, Gbc, PpuStatus};
+use gbc::{memory::Memory, CpuEvent, CpuReg, CpuStatus, Gbc, Mmu, PpuStatus};
 use tokio::sync::mpsc;
 
 use crate::{comms::{EmuMsgIn, EmuMsgOut}, state::{InnerEmuState, StateDump}};
@@ -123,7 +123,7 @@ pub struct Breakpoints {
 // }
 
 pub struct Emu {
-    inner: Option<Gbc>,
+    inner: Option<Gbc<Mmu>>,
     receiver: mpsc::UnboundedReceiver<EmuMsgIn>,
     sender: mpsc::UnboundedSender<EmuMsgOut>,
     egui_ctx: Context,
@@ -161,7 +161,7 @@ impl Emu {
             tokio::spawn(async move {
                 *self.state.status.lock() = EmuStatus::Running;
                 // *self.state.status.lock() = EmuStatus::Break;
-                // emu.cpu.breakpoint_controls.set(CpuEvent::Pc(0x29d5));
+                // emu.cpu.breakpoint_controls.set(CpuEvent::LdBb);
                 let mut buf: Option<EmuMsgIn> = None;
 
                 loop {
@@ -262,7 +262,7 @@ impl Emu {
         Err(EmuError::Uninitialized)
     }
 
-    fn step(&mut self, emu: &mut Gbc) -> Result<CpuStatus, gbc::CpuError> {
+    fn step(&mut self, emu: &mut Gbc<Mmu>) -> Result<CpuStatus, gbc::CpuError> {
         let (cpu_status, draw_ready) = emu.step();
 
         if draw_ready {
@@ -288,7 +288,7 @@ impl Emu {
         cpu_status
     }
 
-    fn dump_state(&self, emu: &Gbc) -> Result<(), mpsc::error::SendError<EmuMsgOut>> {
+    fn dump_state(&self, emu: &Gbc<Mmu>) -> Result<(), mpsc::error::SendError<EmuMsgOut>> {
         let regs = emu.cpu.regs;
         let io_regs = emu.cpu.dump_io_regs();
         let memory = emu.cpu.memory.load_block(0, u16::MAX);

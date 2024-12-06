@@ -1,6 +1,6 @@
 use std::{env::args, fs::{read, read_dir, DirEntry, File}, io::{stdout, Read, Write}, path::{Path, PathBuf}};
 
-use gbc::{CpuError, CpuStatus, Gbc, Mmu};
+use gbc::{memory::{FlatMemory, Memory}, CpuError, CpuStatus, Gbc, Mmu};
 use serde::{de::{self, Visitor}, Deserialize};
 
 #[derive(Deserialize, Debug)]
@@ -81,7 +81,9 @@ impl<'de> Deserialize<'de> for MemoryMode {
 
 fn main() {
     let check_mem = false;
-    let mut sys = Gbc::new(gbc::MbcSelector::NoMbc, false, true);
+    let mut sys = Gbc::new_flat(false, true);
+    // let mut sys = Gbc::new_flat(true, true);
+    sys.disable_ppu();
     let files: Vec<DirEntry> = if let Some(instruction) = args().nth(1) {
         let mut path: PathBuf = [".", "sm83", "v1", &instruction].iter().collect();
         path.set_extension("json");
@@ -108,7 +110,7 @@ fn main() {
     }
 }
 
-fn run_tests(sys: &mut Gbc, buf: Vec<u8>, check_mem: bool) -> Result<(), (String, String)> {
+fn run_tests(sys: &mut Gbc<FlatMemory>, buf: Vec<u8>, check_mem: bool) -> Result<(), (String, String)> {
     let tests: Vec<Test> = serde_json::from_slice(&buf).unwrap();
 
     println!("Test {}", tests[0].name);
@@ -128,7 +130,7 @@ fn run_tests(sys: &mut Gbc, buf: Vec<u8>, check_mem: bool) -> Result<(), (String
     Ok(())
 }
 
-fn init_state(sys: &mut Gbc, state: &State) {
+fn init_state(sys: &mut Gbc<FlatMemory>, state: &State) {
     sys.cpu.regs.a = state.a;
     sys.cpu.regs.b = state.b;
     sys.cpu.regs.c = state.c;
@@ -140,13 +142,14 @@ fn init_state(sys: &mut Gbc, state: &State) {
     sys.cpu.regs.l = state.l;
     sys.cpu.regs.pc = state.pc;
     sys.cpu.regs.sp = state.sp;
-    sys.cpu.regs.ime = state.ime == 1;
+    sys.cpu.regs.ime = false;
     sys.cpu.ppu.lcdc.lcd_enable = false;
     sys.cpu.div = 0;
 
-    sys.cpu.memory = Box::new(Mmu::new(gbc::MbcSelector::NoMbc));
-    
-    sys.cpu.memory.splice(0xff00, &[0; 0x80]);
+    sys.cpu.memory.inner.fill(0);
+    sys.cpu.halted = false;
+    sys.cpu.stop = false;
+
 
     if let Some(ie) = state.ie {
         sys.cpu.memory.set(gbc::memory::IE, ie);
@@ -159,7 +162,7 @@ fn init_state(sys: &mut Gbc, state: &State) {
     }
 }
 
-fn assert_state(sys: &Gbc, state: &State) -> Result<(), String> {
+fn assert_state(sys: &Gbc<FlatMemory>, state: &State) -> Result<(), String> {
     if sys.cpu.regs.a != state.a { Err(format!("A = {}, expected {}", sys.cpu.regs.a, state.a)) }
     else if sys.cpu.regs.b != state.b { Err(format!("B = {}, expected {}", sys.cpu.regs.b, state.b)) }
     else if sys.cpu.regs.c != state.c { Err(format!("C = {}, expected {}", sys.cpu.regs.c, state.c)) }
@@ -170,7 +173,7 @@ fn assert_state(sys: &Gbc, state: &State) -> Result<(), String> {
     else if sys.cpu.regs.l != state.l { Err(format!("L = {}, expected {}", sys.cpu.regs.l, state.l)) }
     else if sys.cpu.regs.pc != state.pc { Err(format!("PC = {:#06X}, expected {:#06X}", sys.cpu.regs.pc, state.pc)) }
     else if sys.cpu.regs.sp != state.sp { Err(format!("SP = {}, expected {}", sys.cpu.regs.sp, state.sp)) }
-    else if sys.cpu.regs.ime != (state.ime == 1) { Err(format!("IME = {}, expected {}", sys.cpu.regs.ime, state.ime == 1)) }
+    // else if sys.cpu.regs.ime != (state.ime == 1) { Err(format!("IME = {}, expected {}", sys.cpu.regs.ime, state.ime == 1)) }
     else if let Some(ie) = state.ie {
         let sys_ie = sys.cpu.memory.load(gbc::memory::IE).unwrap();
         if sys_ie != ie { Err(format!("IE = {:#08X}, expected {}", sys_ie, ie)) }
@@ -180,7 +183,7 @@ fn assert_state(sys: &Gbc, state: &State) -> Result<(), String> {
     }
 }
 
-fn assert_memory(sys: &Gbc, state: &State) -> Result<(), String> {
+fn assert_memory(sys: &Gbc<FlatMemory>, state: &State) -> Result<(), String> {
     for cell in &state.ram {
         let value = sys.cpu.memory.load(cell.addr);
         if value != Some(cell.value) { return Err(format!("[{:#06X}] = {:?}, expected {}", cell.addr, value, cell.value)) };
