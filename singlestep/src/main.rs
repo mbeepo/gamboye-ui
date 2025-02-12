@@ -81,7 +81,8 @@ impl<'de> Deserialize<'de> for MemoryMode {
 
 fn main() {
     let check_mem = false;
-    let mut sys = Gbc::new_flat(false, true);
+    let mut sys = Gbc::new_flat(true, true);
+    sys.cpu.debug = false;
     // let mut sys = Gbc::new_flat(true, true);
     sys.disable_ppu();
     let files: Vec<DirEntry> = if let Some(instruction) = args().nth(1) {
@@ -117,7 +118,14 @@ fn run_tests(sys: &mut Gbc<FlatMemory>, buf: Vec<u8>, check_mem: bool) -> Result
 
     for test in tests {
         init_state(sys, &test.initial);
+
+        if &test.name == "21 02C9" {
+            sys.cpu.debug = true;
+        }
+
         sys.step().0.unwrap();
+
+        sys.cpu.debug = false;
 
         if check_mem {
             assert_state(&sys, &test._final).map_err(|err| (test.name.clone(), err))?;
