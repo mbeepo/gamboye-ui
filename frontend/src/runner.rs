@@ -205,7 +205,9 @@ impl Emu {
                                     status = EmuStatus::FrameLimited;
                                 },
                                 FrameUnlimit => {
-                                    status = EmuStatus::Running;
+                                    if status == EmuStatus::FrameLimited {
+                                        status = EmuStatus::Running;
+                                    }
                                 },
                                 ButtonPressed(button) => {
                                     emu.press_button(button);

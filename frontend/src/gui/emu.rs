@@ -40,10 +40,7 @@ pub fn show(ctx: &Context, state: &mut TopState) -> InnerResponse<()> {
             }
 
             let new_display = ColorImage::from_rgb([WIDTH, HEIGHT], &system_fb);
-
-            if new_display != state.emu.display {
-                state.emu.texture = ctx.load_texture("emu_display", new_display, TextureOptions::NEAREST);
-            }
+            state.emu.texture = ctx.load_texture("emu_display", new_display, TextureOptions::NEAREST);
 
             crate::gui::perf::record_frame(state);
             crate::gui::perf::ratelimit(state);
